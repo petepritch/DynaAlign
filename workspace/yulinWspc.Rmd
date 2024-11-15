@@ -1,0 +1,276 @@
+```{Rcpp}
+#include <Rcpp.h>
+#include <string>
+#include <vector>
+using namespace std;
+using namespace Rcpp;
+
+// [[Rcpp::export]]
+List needleman_wunsch(const string& seq1, const string& seq2, int match_score, int mismatch_penalty, int gap_penalty) {
+    size_t n = seq1.size();
+    size_t m = seq2.size();
+
+    // Initialize score and traceback matrices
+    vector<vector<int>> score(n + 1, vector<int>(m + 1, 0));
+    vector<vector<int>> traceback(n + 1, vector<int>(m + 1, 0));
+
+    // Fill in first row and column
+    for (size_t i = 1; i <= n; ++i) {
+        score[i][0] = score[i - 1][0] + gap_penalty;
+        traceback[i][0] = 1; // Up
+    }
+    for (size_t j = 1; j <= m; ++j) {
+        score[0][j] = score[0][j - 1] + gap_penalty;
+        traceback[0][j] = 2; // Left
+    }
+
+    // Fill in the rest of the score and traceback matrices
+    for (size_t i = 1; i <= n; ++i) {
+        for (size_t j = 1; j <= m; ++j) {
+            int match = (seq1[i - 1] == seq2[j - 1]) ? match_score : mismatch_penalty;
+            int diag = score[i - 1][j - 1] + match;
+            int up = score[i - 1][j] + gap_penalty;
+            int left = score[i][j - 1] + gap_penalty;
+
+            score[i][j] = max({diag, up, left});
+
+            if (score[i][j] == diag)
+                traceback[i][j] = 3; // Diagonal
+            else if (score[i][j] == up)
+                traceback[i][j] = 1; // Up
+            else
+                traceback[i][j] = 2; // Left
+        }
+    }
+
+    // Traceback to get aligned sequences
+    string align1, align2;
+    size_t i = n, j = m;
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && traceback[i][j] == 3) {
+            align1 = seq1[i - 1] + align1;
+            align2 = seq2[j - 1] + align2;
+            i--; j--;
+        } else if (i > 0 && traceback[i][j] == 1) {
+            align1 = seq1[i - 1] + align1;
+            align2 = "-" + align2;
+            i--;
+        } else if (j > 0 && traceback[i][j] == 2) {
+            align1 = "-" + align1;
+            align2 = seq2[j - 1] + align2;
+            j--;
+        } else {
+            break;
+        }
+    }
+
+    return List::create(Named("alignment1") = align1,
+                        Named("alignment2") = align2,
+                        Named("score") = score[n][m]);
+}
+```
+
+```{Rcpp}
+#include <Rcpp.h>
+#include <string>
+#include <vector>
+using namespace std;
+using namespace Rcpp;
+
+// [[Rcpp::export]]
+List needleman_wunsch(const string &sequence1, const string &sequence2, int matchScore, int mismatchPenalty, int gapPenalty) {  
+    size_t m = sequence1.size();
+    size_t n = sequence2.size();  
+  
+    // Initialize the dynamic programming matrix  
+    vector<vector<int>> dpMatrix(m + 1, vector<int>(n + 1, 0));  
+  
+    // Initialize the first row and column with gap penalties  
+    for (int i = 1; i <= m; ++i) {  
+        dpMatrix[i][0] = dpMatrix[i - 1][0] + gapPenalty;  
+    }  
+  
+    for (int j = 1; j <= n; ++j) {  
+        dpMatrix[0][j] = dpMatrix[0][j - 1] + gapPenalty;  
+    }  
+  
+    // Fill the dynamic programming matrix  
+    for (int i = 1; i <= m; ++i) {  
+        for (int j = 1; j <= n; ++j) {  
+            int match = dpMatrix[i - 1][j - 1] + (sequence1[i - 1] == sequence2[j - 1] ? matchScore : mismatchPenalty);  
+            int gap1 = dpMatrix[i - 1][j] + gapPenalty;  
+            int gap2 = dpMatrix[i][j - 1] + gapPenalty;  
+  
+            dpMatrix[i][j] = max({match, gap1, gap2});  
+        }  
+    }  
+  
+    // Backtrack to find the optimal alignment  
+    int i = m, j = n;  
+    string align1, align2;  
+  
+    while (i > 0 || j > 0) {  
+        if (i > 0 && j > 0 && dpMatrix[i][j] == dpMatrix[i - 1][j - 1] + (sequence1[i - 1] == sequence2[j - 1] ? matchScore : mismatchPenalty)) {  
+            align1 = sequence1[i - 1] + align1;  
+            align2 = sequence2[j - 1] + align2;  
+            --i;  
+            --j;  
+        } else if (i > 0 && dpMatrix[i][j] == dpMatrix[i - 1][j] + gapPenalty) {  
+            align1 = sequence1[i - 1] + align1;  
+            align2 = '-' + align2;  
+            --i;  
+        } else {  
+            align1 = '-' + align1;  
+            align2 = sequence2[j - 1] + align2;  
+            --j;  
+        }  
+    }  
+  return List::create(Named("alignment1") = align1,
+                      Named("alignment2") = align2,
+                      Named("score") = dpMatrix[n][m]);
+}
+
+```
+
+```{r}
+library(digest)
+
+# Function to generate k-mers from an aligned sequence
+generate_kmers = function(sequence, k) {
+    kmers = c()
+    n = nchar(sequence)
+    for (i in 1:(n - k + 1)) {
+        kmer = substr(sequence, i, i + k - 1)
+        # Skip k-mers containing gaps
+        if (!grepl("-", kmer)) {
+            kmers = c(kmers, kmer)
+        }
+    }
+    return(unique(kmers))
+}
+
+# Function to compute MinHash signature
+compute_minhash_signature = function(kmers, num_hashes = 100) {
+    signature = numeric(num_hashes)
+    universe = unique(kmers)
+    for (i in 1:num_hashes) {
+        # Use murmur32 algorithm with seed
+        hashed_values = sapply(kmers, function(kmer) {
+            # Get the hash value as a hexadecimal string
+            hash_hex = digest(kmer, algo = "murmur32", seed = i)
+            # Convert hexadecimal string to numeric value
+            hash_num = as.numeric(paste0("0x", hash_hex))
+            return(hash_num)
+        })
+        signature[i] = min(hashed_values, na.rm = TRUE)
+    }
+    return(signature)
+}
+
+# Function to compute similarity between two signatures
+compute_minhash_similarity = function(sig1, sig2) {
+    return(sum(sig1 == sig2) / length(sig1))
+}
+
+# Function to compute the similarity matrix
+compute_similarity_matrix_minhash = function(sequences, k = 3, num_hashes = 100) {
+    n = length(sequences)
+    similarity_matrix = matrix(0, nrow = n, ncol = n)
+    colnames(similarity_matrix) = rownames(similarity_matrix) = sequences
+
+    # Parameters for alignment
+    match_score = 1
+    mismatch_penalty = -1
+    gap_penalty = -1
+
+    # Store MinHash signatures for each sequence
+    minhash_signatures = vector("list", n)
+
+    for (i in 1:n) {
+        # Align each sequence with itself
+        result = needleman_wunsch(sequences[i], sequences[i], match_score, mismatch_penalty, gap_penalty)
+        aligned_seq = result$alignment1
+        # Generate k-mers
+        kmers = generate_kmers(aligned_seq, k)
+        # Compute MinHash signature
+        minhash_signatures[[i]] = compute_minhash_signature(kmers, num_hashes)
+    }
+
+    # Compute pairwise similarities
+    for (i in 1:n) {
+        for (j in i:n) {
+            if (i == j) {
+                similarity_matrix[i, j] = 1  # Similarity with itself is 1
+            } else {
+                sim = compute_minhash_similarity(minhash_signatures[[i]], minhash_signatures[[j]])
+                similarity_matrix[i, j] = sim
+                similarity_matrix[j, i] = sim
+            }
+        }
+    }
+    return(similarity_matrix)
+}
+```
+
+```{r}
+
+# Example peptide sequences
+peptides = c("ACDEFGHIK", "ACDFGHIK", "ACDEFGHIKLM", "ACDGHIK")
+
+# Compute the similarity matrix using MinHash
+similarity_matrix_minhash = compute_similarity_matrix_minhash(peptides, k = 3, num_hashes = 100)
+print(similarity_matrix_minhash)
+```
+
+```{r}
+s1 = "ATGAGTCTCTCTGATAAGGACAAGGCTGCTGTGAAAGCCCTATGG"
+  s2 = "CTGTCTCCTGCCGACAAGACCAACGTCAAGGCCGCCTGGGGTAAG"
+match_score = 1
+mismatch_penalty = -2
+gap_penalty = -2
+result = needleman_wunsch(s1, s2, match_score, mismatch_penalty, gap_penalty)
+
+alignment1 = result$alignment1
+alignment2 = result$alignment2
+
+# Initialize counters
+num_identities <- 0
+num_gaps <- 0
+
+# Iterate over sequences
+for (i in 1:nchar(alignment1)) {
+    char1 <- substr(alignment1, i, i)
+    char2 <- substr(alignment2, i, i)
+    
+    if (char1 == "-" || char2 == "-") {
+        num_gaps <- num_gaps + 1
+    } else if (char1 == char2) {
+        num_identities <- num_identities + 1
+    }
+}
+
+# Output
+nchar(s1)
+nchar(alignment1)
+cat("Number of identities:", num_identities, "\n")
+cat("Number of gaps:", num_gaps, "\n")
+
+alignment1
+alignment2
+```
+
+```{r}
+s1 = "ACDEFGHIK"
+s2 = "ACDFGHIK"
+
+match_score = 2
+mismatch_penalty = -3
+gap_penalty = -2
+result = needleman_wunsch(s1, s2, match_score, mismatch_penalty, gap_penalty)
+
+alignment1 = result$alignment1
+alignment2 = result$alignment2
+alignment1
+alignment2
+```
+
