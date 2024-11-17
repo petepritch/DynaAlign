@@ -306,6 +306,13 @@ mat
 #include <Rcpp.h>
 #include <string>
 #include <vector>
+#include <unordered_set>
+#include <algorithm>
+// Add OpenMP if available
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 using namespace std;
 using namespace Rcpp;
 
@@ -437,57 +444,160 @@ NumericMatrix minhash_similarity_matrix(CharacterVector sequences, int k = 2, in
 ```
 
 ```{Rcpp}
-// minhash.cpp
-
 #include <Rcpp.h>
-#include <unordered_set>
-#include <vector>
 #include <string>
-#include <climits>
+#include <vector>
+#include <unordered_set>
+#include <algorithm>
+// Add OpenMP if available
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
-// [[Rcpp::plugins(cpp11)]]
-
+using namespace std;
 using namespace Rcpp;
 
-// FNV-1a 32-bit hash function
-unsigned int fnv1aHash(const std::string &str, unsigned int seed) {
-    const unsigned int fnv_prime = 0x01000193; // 16777619
-    unsigned int hash = 0x811C9DC5;            // 2166136261
+// MurmurHash3 implementation
+uint32_t murmur3_32(const char* key, size_t len, uint32_t seed) {
+    static const uint32_t c1 = 0xcc9e2d51;
+    static const uint32_t c2 = 0x1b873593;
+    static const uint32_t r1 = 15;
+    static const uint32_t r2 = 13;
+    static const uint32_t m = 5;
+    static const uint32_t n = 0xe6546b64;
 
-    // Incorporate the seed into the initial hash
-    hash ^= seed;
+    uint32_t hash = seed;
 
-    for (char c : str) {
-        hash ^= static_cast<unsigned char>(c);
-        hash *= fnv_prime;
+    const int nblocks = len / 4;
+    const uint32_t* blocks = (const uint32_t*)(key);
+
+    for(int i = 0; i < nblocks; i++) {
+        uint32_t k = blocks[i];
+        k *= c1;
+        k = (k << r1) | (k >> (32 - r1));
+        k *= c2;
+        hash ^= k;
+        hash = ((hash << r2) | (hash >> (32 - r2))) * m + n;
     }
+
+    const uint8_t* tail = (const uint8_t*)(key + nblocks * 4);
+    uint32_t k1 = 0;
+
+    switch(len & 3) {
+        case 3: k1 ^= tail[2] << 16;
+        case 2: k1 ^= tail[1] << 8;
+        case 1: k1 ^= tail[0];
+                k1 *= c1;
+                k1 = (k1 << r1) | (k1 >> (32 - r1));
+                k1 *= c2;
+                hash ^= k1;
+    }
+
+    hash ^= len;
+    hash ^= (hash >> 16);
+    hash *= 0x85ebca6b;
+    hash ^= (hash >> 13);
+    hash *= 0xc2b2ae35;
+    hash ^= (hash >> 16);
+
     return hash;
 }
 
-// [[Rcpp::export]]
-std::vector< std::vector<unsigned int> > computeMinHashSignatures(
-    const std::vector< std::vector<std::string> > &all_kmers,
-    int num_hashes) {
-    int num_sequences = all_kmers.size();
-    std::vector< std::vector<unsigned int> > signatures(
-        num_sequences, std::vector<unsigned int>(num_hashes, UINT_MAX)
-    );
+// Hash family class for multiple hash functions
+class HashFamily {
+private:
+    vector<uint32_t> seeds;
+    
+public:
+    HashFamily(int num_hash) {
+        seeds.reserve(num_hash);  // Pre-allocate memory
+        // Better seed generation
+        for(int i = 0; i < num_hash; ++i) {
+            seeds.push_back(murmur3_32((char*)&i, sizeof(i), 0x9747b28c));
+        }
+    }
+    
+    uint32_t hash(const string& s, int index) const {  // Made const
+        return murmur3_32(s.c_str(), s.length(), seeds[index]);
+    }
+};
 
-    for (int i = 0; i < num_sequences; ++i) {
-        // Use a set to avoid duplicate k-mers
-        std::unordered_set<std::string> kmers(all_kmers[i].begin(), all_kmers[i].end());
-        for (int n = 0; n < num_hashes; ++n) {
-            for (const auto &kmer : kmers) {
-                unsigned int hash_value = fnv1aHash(kmer, n);
-                if (hash_value < signatures[i][n]) {
-                    signatures[i][n] = hash_value;
-                }
+// Improved k-mer generation with pre-allocation
+inline vector<string> generate_kmers(const string& seq, int k) {
+    vector<string> kmers;
+    size_t expected_size = seq.length() - k + 1;
+    kmers.reserve(expected_size);  // Pre-allocate memory
+    
+    for(size_t i = 0; i <= seq.length() - k; ++i) {
+        kmers.push_back(seq.substr(i, k));
+    }
+    return kmers;
+}
+
+// [[Rcpp::export]]
+NumericMatrix minhash_similarity_matrix1(CharacterVector sequences, int k = 2, int num_hash = 50) {
+    size_t n = sequences.length();
+    NumericMatrix similarityMatrix(n, n);
+    
+    // Initialize hash family
+    const HashFamily hash_family(num_hash);  // Made const
+    
+    // Pre-allocate memory for all signatures
+    vector<vector<uint32_t>> signatures(n);
+    for(auto& sig : signatures) {
+        sig.resize(num_hash, UINT32_MAX);
+    }
+    
+    // Generate signatures in parallel
+    #pragma omp parallel for schedule(dynamic) if(n > 1000)
+    for(size_t i = 0; i < n; ++i) {
+        string seq = as<string>(sequences[i]);
+        vector<string> kmers = generate_kmers(seq, k);
+        
+        // Local signature array for thread safety
+        vector<uint32_t>& signature = signatures[i];
+        
+        for(const string& kmer : kmers) {
+            for(int h = 0; h < num_hash; ++h) {
+                uint32_t hash_value = hash_family.hash(kmer, h);
+                signature[h] = min(signature[h], hash_value);
             }
         }
     }
-    return signatures;
+    
+    // Calculate similarities in parallel
+    #pragma omp parallel for schedule(dynamic) collapse(2) if(n > 1000)
+    for(size_t i = 0; i < n; ++i) {
+        for(size_t j = i; j < n; ++j) {
+            if(i == j) {
+                similarityMatrix(i,i) = 1.0;
+                continue;
+            }
+            
+            // SIMD-friendly array comparison
+            const vector<uint32_t>& sig1 = signatures[i];
+            const vector<uint32_t>& sig2 = signatures[j];
+            
+            int matches = 0;
+            for(int h = 0; h < num_hash; ++h) {
+                matches += (sig1[h] == sig2[h]);
+            }
+            
+            double similarity = static_cast<double>(matches) / num_hash;
+            similarityMatrix(i,j) = similarity;
+            similarityMatrix(j,i) = similarity;
+        }
+    }
+    
+    // Add dimension names
+    CharacterVector labels(n);
+    for(size_t i = 0; i < n; ++i) {
+        labels[i] = to_string(i + 1);
+    }
+    similarityMatrix.attr("dimnames") = List::create(labels, labels);
+    
+    return similarityMatrix;
 }
-
 ```
 
 ```{r}
@@ -546,7 +656,168 @@ similarity_matrix[1,]
 ```
 
 ```{r}
-peptides[1:10]
-is.character(peptides)
+library(bench)
+get_minhash_similarity <- function(sequences, k = 2, num_hash = 50, batch_size = NULL) {
+    if(!is.character(sequences)) {
+        stop("Input must be a character vector of sequences")
+    }
+    
+    # Calculate default batch size if not provided
+    if(is.null(batch_size)) {
+        n <- length(sequences)
+        # Conservative batch size based on sequence length
+        batch_size <- min(max(floor(n/10), 100), n)
+    }
+    
+    minhash_similarity_matrix2(sequences, k, num_hash, batch_size)
+}
+# Set number of OpenMP threads
+Sys.setenv("OMP_NUM_THREADS" = parallel::detectCores())
+
+# Run with optimizations
+minhash_similarity_matrix(peptides[1:10], k=2, num_hash=50)
+minhash_similarity_matrix1(peptides[1:10], k=2, num_hash=50)
+get_minhash_similarity(peptides[1:10])
+result = bench::mark(minhash_similarity_matrix(peptides, k=2, num_hash=50),
+            minhash_similarity_matrix1(peptides, k=2, num_hash=50),
+            # calculateSimilarityMatrix(peptides),
+            iterations=5,
+            check=F)
+print(result)
+plot(result)
+```
+
+```{Rcpp}
+#include <Rcpp.h>
+#include <string>
+#include <vector>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
+using namespace std;
+using namespace Rcpp;
+
+// MurmurHash3 implementation (same as before)
+uint32_t murmur3_32(const char* key, size_t len, uint32_t seed) {
+    // ... (same as before)
+}
+
+class HashFamily {
+private:
+    vector<uint32_t> seeds;
+    
+public:
+    HashFamily(int num_hash) {
+        seeds.reserve(num_hash);
+        for(int i = 0; i < num_hash; ++i) {
+            seeds.push_back(i + 1);
+        }
+    }
+    
+    uint32_t hash(const string& s, int index) const {
+        return murmur3_32(s.c_str(), s.length(), seeds[index]);
+    }
+};
+
+// Process sequences in batches to reduce memory usage
+// [[Rcpp::export]]
+NumericMatrix minhash_similarity_matrix2(CharacterVector sequences, int k = 2, int num_hash = 50, 
+                                      int batch_size = 100) {
+    size_t n = sequences.length();
+    NumericMatrix similarityMatrix(n, n);
+    const HashFamily hash_family(num_hash);
+    
+    // Process in batches
+    for(size_t batch_start = 0; batch_start < n; batch_start += batch_size) {
+        size_t batch_end = min(batch_start + batch_size, n);
+        size_t current_batch_size = batch_end - batch_start;
+        
+        // Allocate memory for current batch only
+        vector<vector<uint32_t>> batch_signatures(current_batch_size, 
+                                                vector<uint32_t>(num_hash, UINT32_MAX));
+        
+        // Generate signatures for current batch
+        #ifdef _OPENMP
+        #pragma omp parallel for schedule(static)
+        #endif
+        for(size_t i = 0; i < current_batch_size; ++i) {
+            string seq = as<string>(sequences[batch_start + i]);
+            
+            // Generate k-mers on the fly instead of storing
+            for(size_t pos = 0; pos <= seq.length() - k; ++pos) {
+                string kmer = seq.substr(pos, k);
+                for(int h = 0; h < num_hash; ++h) {
+                    uint32_t hash_value = hash_family.hash(kmer, h);
+                    batch_signatures[i][h] = min(batch_signatures[i][h], hash_value);
+                }
+            }
+        }
+        
+        // Compare current batch with all sequences
+        #ifdef _OPENMP
+        #pragma omp parallel for schedule(static) collapse(2)
+        #endif
+        for(size_t i = 0; i < current_batch_size; ++i) {
+            for(size_t j = 0; j < n; ++j) {
+                size_t global_i = batch_start + i;
+                
+                // Skip if we've already computed this pair
+                if(global_i < j) continue;
+                
+                if(global_i == j) {
+                    similarityMatrix(global_i, j) = 1.0;
+                    continue;
+                }
+                
+                // If j is in current batch, use batch_signatures
+                if(j >= batch_start && j < batch_end) {
+                    size_t local_j = j - batch_start;
+                    int matches = 0;
+                    for(int h = 0; h < num_hash; ++h) {
+                        matches += (batch_signatures[i][h] == batch_signatures[local_j][h]);
+                    }
+                    double similarity = static_cast<double>(matches) / num_hash;
+                    similarityMatrix(global_i, j) = similarity;
+                    similarityMatrix(j, global_i) = similarity;
+                }
+                // If j is in previous batch, we've already computed it
+                else if(j < batch_start) {
+                    continue;
+                }
+                // If j is in future batch, compute its signature now
+                else {
+                    string seq_j = as<string>(sequences[j]);
+                    vector<uint32_t> signature_j(num_hash, UINT32_MAX);
+                    
+                    for(size_t pos = 0; pos <= seq_j.length() - k; ++pos) {
+                        string kmer = seq_j.substr(pos, k);
+                        for(int h = 0; h < num_hash; ++h) {
+                            uint32_t hash_value = hash_family.hash(kmer, h);
+                            signature_j[h] = min(signature_j[h], hash_value);
+                        }
+                    }
+                    
+                    int matches = 0;
+                    for(int h = 0; h < num_hash; ++h) {
+                        matches += (batch_signatures[i][h] == signature_j[h]);
+                    }
+                    double similarity = static_cast<double>(matches) / num_hash;
+                    similarityMatrix(global_i, j) = similarity;
+                    similarityMatrix(j, global_i) = similarity;
+                }
+            }
+        }
+    }
+    
+    // Add dimension names
+    CharacterVector labels(n);
+    for(size_t i = 0; i < n; ++i) {
+        labels[i] = to_string(i + 1);
+    }
+    similarityMatrix.attr("dimnames") = List::create(labels, labels);
+    
+    return similarityMatrix;
+}
 ```
 

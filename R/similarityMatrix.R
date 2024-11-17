@@ -1,3 +1,6 @@
+# Set number of OpenMP threads
+Sys.setenv("OMP_NUM_THREADS" = parallel::detectCores())
+
 #' @importFrom Rcpp sourceCpp
 NULL
 
