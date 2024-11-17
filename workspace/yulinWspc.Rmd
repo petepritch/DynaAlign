@@ -241,13 +241,9 @@ compute_similarity_matrix_minhash = function(sequences, k = 3, num_hashes = 100)
 ```
 
 ```{r}
-
-# Example peptide sequences
-peptides = c("ACDEFGHIK", "ACDFGHIK", "ACDEFGHIKLM", "ACDGHIK")
-
 # Compute the similarity matrix using MinHash
 similarity_matrix_minhash = compute_similarity_matrix_minhash(peptides, k = 3, num_hashes = 100)
-print(similarity_matrix_minhash)
+similarity_matrix_minhash[1,]
 ```
 
 ```{r}
@@ -291,6 +287,266 @@ num_identities / leng
 ```
 
 ```{r}
-calculateSimilarityMatrix(c(s1, s2, s3))
+s1 = "RRAVELQTVAFP"
+s2 = "PPPSYETVMAAA"
+s3 = "TPPPSYETVMAA"
+data = read.csv("C:/Users/syl05/OneDrive/Desktop/UMICH/FALL 2024/Biostat 615/DynaAlign/data/testData/Adenovirus_IgG_191213_27Jan2023_MDS_Long_COVID_19_vs_MECFS_Case_Serum.wDescr.sorted.csv")
+peptides = data$PROBE_SEQUENCE
+mat = calculateSimilarityMatrix(peptides[1:10])
+mat
+# mat[1,]
+mat = minhash_similarity_matrix(peptides[1:10])
+mat
+# mat[1,]
+# calculateSimilarityMatrix(c(s1,s2,s3))
+# minhash_similarity_matrix(c(s1,s2,s3))
+```
+
+```{Rcpp}
+#include <Rcpp.h>
+#include <string>
+#include <vector>
+using namespace std;
+using namespace Rcpp;
+
+// MurmurHash3 implementation
+uint32_t murmur3_32(const char* key, size_t len, uint32_t seed) {
+    static const uint32_t c1 = 0xcc9e2d51;
+    static const uint32_t c2 = 0x1b873593;
+    static const uint32_t r1 = 15;
+    static const uint32_t r2 = 13;
+    static const uint32_t m = 5;
+    static const uint32_t n = 0xe6546b64;
+
+    uint32_t hash = seed;
+
+    const int nblocks = len / 4;
+    const uint32_t* blocks = (const uint32_t*)(key);
+
+    for(int i = 0; i < nblocks; i++) {
+        uint32_t k = blocks[i];
+        k *= c1;
+        k = (k << r1) | (k >> (32 - r1));
+        k *= c2;
+        hash ^= k;
+        hash = ((hash << r2) | (hash >> (32 - r2))) * m + n;
+    }
+
+    const uint8_t* tail = (const uint8_t*)(key + nblocks * 4);
+    uint32_t k1 = 0;
+
+    switch(len & 3) {
+        case 3: k1 ^= tail[2] << 16;
+        case 2: k1 ^= tail[1] << 8;
+        case 1: k1 ^= tail[0];
+                k1 *= c1;
+                k1 = (k1 << r1) | (k1 >> (32 - r1));
+                k1 *= c2;
+                hash ^= k1;
+    }
+
+    hash ^= len;
+    hash ^= (hash >> 16);
+    hash *= 0x85ebca6b;
+    hash ^= (hash >> 13);
+    hash *= 0xc2b2ae35;
+    hash ^= (hash >> 16);
+
+    return hash;
+}
+
+// Hash family class for multiple hash functions
+class HashFamily {
+private:
+    vector<uint32_t> seeds;
+    
+public:
+    HashFamily(int num_hash) {
+        seeds.resize(num_hash);
+        for(int i = 0; i < num_hash; ++i) {
+            seeds[i] = i + 1;  // Simple seed generation
+        }
+    }
+    
+    uint32_t hash(const string& s, int index) {
+        return murmur3_32(s.c_str(), s.length(), seeds[index]);
+    }
+};
+
+// Generate k-mers from a sequence
+vector<string> generate_kmers(const string& seq, int k) {
+    vector<string> kmers;
+    if (seq.length() >= k) {
+        for(size_t i = 0; i <= seq.length() - k; ++i) {
+            kmers.push_back(seq.substr(i, k));
+        }
+    }
+    return kmers;
+}
+
+// [[Rcpp::export]]
+NumericMatrix minhash_similarity_matrix(CharacterVector sequences, int k = 2, int num_hash = 50) {
+    size_t n = sequences.length();
+    NumericMatrix similarityMatrix(n, n);
+    
+    // Initialize hash family
+    HashFamily hash_family(num_hash);
+    
+    // Store signatures for each sequence
+    vector<vector<uint32_t>> signatures(n, vector<uint32_t>(num_hash, UINT32_MAX));
+    
+    // Generate signatures
+    for(size_t i = 0; i < n; ++i) {
+        string seq = as<string>(sequences[i]);
+        vector<string> kmers = generate_kmers(seq, k);
+        
+        // For each k-mer, update signature
+        for(const string& kmer : kmers) {
+            for(int h = 0; h < num_hash; ++h) {
+                uint32_t hash_value = hash_family.hash(kmer, h);
+                signatures[i][h] = min(signatures[i][h], hash_value);
+            }
+        }
+    }
+    
+    // Calculate similarities
+    for(size_t i = 0; i < n; ++i) {
+        similarityMatrix(i,i) = 1.0;  // Diagonal elements
+        for(size_t j = i+1; j < n; ++j) {
+            int matches = 0;
+            for(int h = 0; h < num_hash; ++h) {
+                if(signatures[i][h] == signatures[j][h]) {
+                    ++matches;
+                }
+            }
+            double similarity = static_cast<double>(matches) / num_hash;
+            similarityMatrix(i,j) = similarity;
+            similarityMatrix(j,i) = similarity;
+        }
+    }
+    
+    // Add dimension names (1,2,3...)
+    CharacterVector labels(n);
+    for(size_t i = 0; i < n; ++i) {
+        labels[i] = to_string(i + 1);
+    }
+    similarityMatrix.attr("dimnames") = List::create(labels, labels);
+    
+    return similarityMatrix;
+}
+```
+
+```{Rcpp}
+// minhash.cpp
+
+#include <Rcpp.h>
+#include <unordered_set>
+#include <vector>
+#include <string>
+#include <climits>
+
+// [[Rcpp::plugins(cpp11)]]
+
+using namespace Rcpp;
+
+// FNV-1a 32-bit hash function
+unsigned int fnv1aHash(const std::string &str, unsigned int seed) {
+    const unsigned int fnv_prime = 0x01000193; // 16777619
+    unsigned int hash = 0x811C9DC5;            // 2166136261
+
+    // Incorporate the seed into the initial hash
+    hash ^= seed;
+
+    for (char c : str) {
+        hash ^= static_cast<unsigned char>(c);
+        hash *= fnv_prime;
+    }
+    return hash;
+}
+
+// [[Rcpp::export]]
+std::vector< std::vector<unsigned int> > computeMinHashSignatures(
+    const std::vector< std::vector<std::string> > &all_kmers,
+    int num_hashes) {
+    int num_sequences = all_kmers.size();
+    std::vector< std::vector<unsigned int> > signatures(
+        num_sequences, std::vector<unsigned int>(num_hashes, UINT_MAX)
+    );
+
+    for (int i = 0; i < num_sequences; ++i) {
+        // Use a set to avoid duplicate k-mers
+        std::unordered_set<std::string> kmers(all_kmers[i].begin(), all_kmers[i].end());
+        for (int n = 0; n < num_hashes; ++n) {
+            for (const auto &kmer : kmers) {
+                unsigned int hash_value = fnv1aHash(kmer, n);
+                if (hash_value < signatures[i][n]) {
+                    signatures[i][n] = hash_value;
+                }
+            }
+        }
+    }
+    return signatures;
+}
+
+```
+
+```{r}
+# Input peptide sequences
+peptides <- c(
+  s1 = "RRAVELQTVAFP",
+  s2 = "RAVELQTVAFPA",
+  s3 = "RCVVAFPAVELB"
+)
+data = read.csv("C:/Users/syl05/OneDrive/Desktop/UMICH/FALL 2024/Biostat 615/DynaAlign/data/testData/Adenovirus_IgG_191213_27Jan2023_MDS_Long_COVID_19_vs_MECFS_Case_Serum.wDescr.sorted.csv")
+peptides = data$PROBE_SEQUENCE
+peptides = peptides[90:100]
+# Function to generate k-mers from a sequence
+generate_kmers <- function(sequence, k) {
+  n <- nchar(sequence)
+  kmers <- substring(sequence, 1:(n - k + 1), k:n)
+  return(kmers)
+}
+# Set the value of k for k-mers
+k <- 2  # For example, trigrams
+
+# Generate k-mers for each sequence
+all_kmers <- lapply(peptides, generate_kmers, k = k)
+# Number of hash functions
+num_hashes <- 50  # Adjust as needed for accuracy
+
+# Compute MinHash signatures using the Rcpp function
+signatures <- computeMinHashSignatures(all_kmers, num_hashes)
+# Function to compute similarity between two signatures
+compute_similarity <- function(sig1, sig2) {
+  return(mean(sig1 == sig2))
+}
+
+# Initialize similarity matrix
+num_sequences <- length(peptides)
+similarity_matrix <- matrix(0, nrow = num_sequences, ncol = num_sequences)
+rownames(similarity_matrix) <- names(peptides)
+colnames(similarity_matrix) <- names(peptides)
+
+# Compute pairwise similarities
+for (i in 1:num_sequences) {
+  for (j in i:num_sequences) {
+    sim <- compute_similarity(signatures[[i]], signatures[[j]])
+    similarity_matrix[i, j] <- sim
+    similarity_matrix[j, i] <- sim  # Symmetric matrix
+  }
+}
+
+# # View the similarity matrix
+# print(similarity_matrix)
+similarity_matrix
+```
+
+```{r}
+similarity_matrix[1,]
+```
+
+```{r}
+peptides[1:10]
+is.character(peptides)
 ```
 
