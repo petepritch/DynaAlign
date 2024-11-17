@@ -1,0 +1,243 @@
+```{r packages}
+library(glue)
+```
+
+```{r load_data}
+file <- 'C:/Users/petep/OneDrive/Documents/Projects/DynaAlign/data/testData/EVP-PepArray_IgG_191213_27Jan2023_MDS_Long_COVID_19_vs_MECFS_Case_Serum.wDescr.sorted.csv'
+
+df <- read.csv(file)
+```
+
+```{r}
+head(df)
+```
+```{r}
+peptides <- df$PROBE_SEQUENCE
+length(peptides)
+```
+
+
+
+### Steps
+
+1. Convert sequences into sets:
+
+  - *k-mers* (sub strings of length *k*), which would help capture local motifs
+  - I think *k* should be a parameter of the algorithm
+  
+2. MinHashing
+
+  - Used to approximate the Jaccard similarity between two sets. The core idea is to use hash functions to map the sets into a lower-dimensional space while preserving the similarity between sets
+  - Need to choose a hash function: a common choice is the polynomial hash function or random permutations of the elements
+  - Generate MinHashes for each peptide 
+  - The more hash functions, the better the approximation of similarity (we could use this as a param)
+  - C++ has the std:hash library
+  - R has the hash and digest libraries
+
+3. Pairwise similarities
+
+  - Jaccard approximation $J(A,B) \approx \frac{\text{Number of matching min-hashes}}{\text{Total number of hash functions}}$
+  
+4. Optimization and Enhancements
+
+  - MinHash can be computationally expensive if the dataset is large, especially with many hash functions
+  - Reduce the number of hash functions
+  - Parallelize the computation, C++ has OpenMP, R has parallel
+  - GPU?
+  
+5. Visualization
+
+  - Heatmap
+  - iGraph
+  
+```{r}
+a <- "YSHQKJSILKSW"
+b <- "QYSKLGXBSMJE"
+c <- "LPQBNGGSYWFJ"
+```
+  
+  
+```{r shingle}
+shingle <- function(x, k) {
+  
+  n <- nchar(x)
+  shingles <- vector("character", length = n - k + 1)
+  for (i in 1:(n - k + 1)) {
+    shingles[i] <- substr(x, i, i + k - 1)
+  }
+  
+  return(shingles)
+}
+```
+
+
+Next, we create our sparse vectors. To do this, we need to union all of our sets to create one big set containing *all* of the shingles across all of our sets -- we call this the **vocabulary**. We use this vocab to create our sparse vector representations of each set. All we do is create an empty vector full of zeros and the same length as our vocab-- then, we look at which shingles appear in our set.
+
+For every shingle that appears, we identify the position of that shingle in our vocab and set the respective position in our new zero-vector to 1. This may be recognized as one-hot encoding.
+
+```{r}
+k <- 2
+
+A <- shingle(a, k)
+B <- shingle(b, k)
+
+vocab <- sort(union(A, B))
+
+print(vocab)
+```
+
+  
+```{r}
+a_1hot <- sapply(vocab, function(x) ifelse(x %in% A, 1, 0))
+b_1hot <- sapply(vocab, function(x) ifelse(x %in% B, 1, 0))
+```
+
+```{r}
+a_1hot
+```
+
+```{r}
+hash_ex <- 1:length(vocab)
+hash_ex
+```
+```{r}
+hash_ex <- sample(hash_ex)
+hash_ex
+```
+
+```{r}
+for (i in 1:10) {
+  print(glue('{i} -> {which(hash_ex == i)}'))
+}
+```
+
+```{r}
+for (i in 1:length(vocab)) {
+  idx <- which(hash_ex == i)
+  signature_val <- a_1hot[idx]
+  print(glue("{i} -> {idx} -> {signature_val}"))
+  
+  if (signature_val == 1) {
+    print("match :)")
+  }
+}
+```
+```{r}
+create_vocab <- function(sequences, k) {
+  
+  all_shingles <- unique(unlist(lapply(sequences, shingle, k = k)))
+  
+  return(sort(all_shingles))
+}
+```
+
+```{r}
+create_char_matrix <- function(sequences, vocab, k) {
+  n_seq <- length(sequences)
+  n_shingles <- length(vocab)
+  char_matrix <- matrix(0, nrow = n_shingles, ncol = n_seq)
+  
+  for (i in 1:n_seq) {
+    seq_shingles <- shingle(sequences[i], k)
+    char_matrix[vocab %in% seq_shingles, i] <- 1
+  }
+  
+  return(char_matrix)
+}
+```
+
+```{r}
+create_hash_parameters <- function(n_hash, max_val) {
+  # Generate pairs of a and b parameters for (ax + b) mod max_val
+  a_values <- sample(1:max_val, n_hash, replace = TRUE)
+  b_values <- sample(0:max_val, n_hash, replace = TRUE)
+  return(list(a = a_values, b = b_values))
+}
+
+apply_hash <- function(x, a, b, m) {
+  return((a * x + b) %% m)
+}
+```
+
+```{r}
+compute_signature_matrix <- function(char_matrix, hash_params, max_val) {
+  n_hash <- length(hash_params$a)
+  n_docs <- ncol(char_matrix)
+  sig_matrix <- matrix(Inf, nrow = n_hash, ncol = n_docs)
+  
+  for (i in 1:nrow(char_matrix)) {
+    # Compute all hash values for current row
+    hash_values <- mapply(function(a, b) apply_hash(i, a, b, max_val),
+                         hash_params$a, hash_params$b)
+    
+    # For each document containing this shingle
+    for (j in 1:n_docs) {
+      if (char_matrix[i,j] == 1) {
+        # Update signature if hash value is smaller
+        sig_matrix[,j] <- pmin(sig_matrix[,j], hash_values)
+      }
+    }
+  }
+  
+  return(sig_matrix)
+}
+```
+
+```{r}
+compute_distance_matrix <- function(sig_matrix) {
+  n_docs <- ncol(sig_matrix)
+  dist_matrix <- matrix(0, nrow = n_docs, ncol = n_docs)
+  
+  for (i in 1:n_docs) {
+    for (j in i:n_docs) {
+      if (i != j) {
+        # Estimate Jaccard similarity as fraction of matching hash values
+        similarity <- mean(sig_matrix[,i] == sig_matrix[,j])
+        dist_matrix[i,j] <- 1 - similarity
+        dist_matrix[j,i] <- dist_matrix[i,j]  # Matrix is symmetric
+      }
+    }
+  }
+  
+  return(dist_matrix)
+}
+```
+
+
+```{r}
+minhash_pipeline <- function(sequences, k, n_hash) {
+  # Create vocabulary
+  vocab <- create_vocab(sequences, k)
+  
+  # Create characteristic matrix
+  char_matrix <- create_char_matrix(sequences, vocab, k)
+  
+  # Create hash parameters
+  max_val <- length(vocab)
+  hash_params <- create_hash_parameters(n_hash, max_val)
+  
+  # Compute signature matrix
+  sig_matrix <- compute_signature_matrix(char_matrix, hash_params, max_val)
+  
+  # Compute distance matrix
+  dist_matrix <- compute_distance_matrix(sig_matrix)
+  
+  return(list(
+    vocabulary = vocab,
+    char_matrix = char_matrix,
+    sig_matrix = sig_matrix,
+    dist_matrix = dist_matrix
+  ))
+}
+
+```
+
+```{r}
+results <- minhash_pipeline(sequences = peptides, k = 2, n_hash = 100)
+```
+
+
+
+
+
+
