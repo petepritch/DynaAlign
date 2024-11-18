@@ -89,7 +89,7 @@ inline vector<string> generate_kmers(const string& seq, int k) {
 }
 
 // [[Rcpp::export]]
-NumericMatrix minhash_similarity_matrix1(CharacterVector sequences, int k = 2, int num_hash = 50) {
+NumericMatrix minhash_similarity_matrix(CharacterVector sequences, int k = 2, int num_hash = 50) {
   size_t n = sequences.length();
   NumericMatrix similarityMatrix(n, n);
   
