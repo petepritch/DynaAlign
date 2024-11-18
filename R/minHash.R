@@ -37,8 +37,7 @@ shingle <- function(x, k) {
   if (!is.character(x) || length(x) != 1)
     stop("x must be a single character string")
   if (!is.numeric(k) || k < 1 || k > nchar(x))
-    stop("k must be a positive integer less than or equal to string length")
-  # Implementation
+    stop("k must be a positive integer less than or equal to string length") # Implementation
   n <- nchar(x)
   shingles <- vector("character", length = n - k + 1)
   for (i in 1:(n - k + 1)) {
@@ -176,7 +175,7 @@ compute_signature_matrix <- function(char_matrix, hash_params, max_val) {
 #'
 #' @param sig_matrix Symmetric matrix of Jaccard distances between sequences
 #'
-#' @return
+#' @return Jaccard distance matrix
 #' @export
 #'
 #' @examples
