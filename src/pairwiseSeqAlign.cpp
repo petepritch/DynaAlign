@@ -5,7 +5,7 @@ using namespace std;
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-double needleman_wunsch_score(const string &sequence1, const string &sequence2,
+double needleman_wunsch_score(const std :: string &sequence1, const std :: string &sequence2,
                               int matchScore=1, int mismatchPenalty=-2, int gapPenalty=-2) {  
   size_t m = sequence1.size();
   size_t n = sequence2.size();  
