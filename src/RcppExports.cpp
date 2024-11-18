@@ -10,16 +10,16 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
-// minhash_similarity_matrix1
-NumericMatrix minhash_similarity_matrix1(CharacterVector sequences, int k, int num_hash);
-RcppExport SEXP _DynaAlign_minhash_similarity_matrix1(SEXP sequencesSEXP, SEXP kSEXP, SEXP num_hashSEXP) {
+// minhash_similarity_matrix
+NumericMatrix minhash_similarity_matrix(CharacterVector sequences, int k, int num_hash);
+RcppExport SEXP _DynaAlign_minhash_similarity_matrix(SEXP sequencesSEXP, SEXP kSEXP, SEXP num_hashSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< CharacterVector >::type sequences(sequencesSEXP);
     Rcpp::traits::input_parameter< int >::type k(kSEXP);
     Rcpp::traits::input_parameter< int >::type num_hash(num_hashSEXP);
-    rcpp_result_gen = Rcpp::wrap(minhash_similarity_matrix1(sequences, k, num_hash));
+    rcpp_result_gen = Rcpp::wrap(minhash_similarity_matrix(sequences, k, num_hash));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -51,7 +51,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_DynaAlign_minhash_similarity_matrix1", (DL_FUNC) &_DynaAlign_minhash_similarity_matrix1, 3},
+    {"_DynaAlign_minhash_similarity_matrix", (DL_FUNC) &_DynaAlign_minhash_similarity_matrix, 3},
     {"_DynaAlign_needleman_wunsch_score", (DL_FUNC) &_DynaAlign_needleman_wunsch_score, 5},
     {"_DynaAlign_calculateSimilarityMatrix", (DL_FUNC) &_DynaAlign_calculateSimilarityMatrix, 1},
     {NULL, NULL, 0}
