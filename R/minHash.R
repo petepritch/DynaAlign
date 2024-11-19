@@ -13,7 +13,7 @@
 #'   \item \code{compute_distance_matrix}: Calculate Jaccard distances
 #' }
 #'
-#' @docType package
+#' @docType _PACKAGE
 #' @name minhash-package
 NULL
 

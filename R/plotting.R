@@ -13,7 +13,7 @@
 #' @importFrom stats hclust dist
 #' @importFrom graphics heatmap
 plot.minhash_result <- function(x, cluster = TRUE, ...) {
-  heatmap(x$dist_matrix, 
+  heatmap(x$dist_matrix,
           Rowv = if(cluster) as.dendrogram(hclust(dist(x$dist_matrix))) else NA,
           Colv = if(cluster) as.dendrogram(hclust(dist(t(x$dist_matrix)))) else NA,
           main = "Sequence Similarity Heatmap",

@@ -9,6 +9,9 @@ compute_distance_matrix(sig_matrix)
 \arguments{
 \item{sig_matrix}{Symmetric matrix of Jaccard distances between sequences}
 }
+\value{
+Jaccard distance matrix
+}
 \description{
 Computes pairwise Jaccard distances between sequences using their MinHash signatures.
 }
