@@ -1,0 +1,17 @@
+```{r library}
+library(igraph)
+library(devtools)
+```
+
+```{r functions}
+load_all()
+
+
+seq=herpesvirus$PROBE_SEQUENCE
+```
+
+```{r}
+test=get_similarity_minhash(seq,2,50)
+
+```
+
