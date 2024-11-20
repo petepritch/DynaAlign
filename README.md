@@ -1,5 +1,36 @@
-# DynaAlign
+# DynaAlign - MinHash for fast genome similarity estimation
+______
 
-Dynamic programming for multiple sequence alignment.
+## Description
+______
+DynaAlign is an open-source package for performing multiple sequence alignment using MinHash.
+______
 
-This project is for partial credit of BIOSTAT 615 Statistical Computing @ The University of Michigan, Ann Arbor.
+## Key Features
+______
+
+# Quick Start
+______
+
+## Installation
+______
+
+## Overview
+______
+
+## Example Usage
+______
+
+## Contributing
+______
+
+# Development
+______
+University of Michigan, Ann Arbor
+
+## Authors
+______
+- Pete Pritchard
+- Yulin Shao
+- Troy Zhou
+
