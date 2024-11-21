@@ -13,7 +13,7 @@ netcluster<-function(pepmat,igraph_mode="upper",igraph_weight=TRUE,louvain_resol
     stop("Input must be a square pairwise similarity matrix")
   }
   network<-igraph::graph_from_adjacency_matrix(pepmat,mode=igraph_mode,weighted=igraph_weight)
-  cluster<-igraph::cluster_louvain(network,weights=igraph::E(network),resolution=louvain_resolution)
+  cluster<-igraph::cluster_louvain(network,weights=igraph::E(network)$weight,resolution=louvain_resolution)
   return(cluster$membership)
 }
 
