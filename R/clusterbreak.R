@@ -20,6 +20,7 @@ netcluster<-function(pepmat,igraph_mode="upper",igraph_weight=TRUE,louvain_resol
 #' Generate clusters with specified sizes using graph network and louvain method
 #' 
 #' @param pep A vector of peptide sequences
+#' @param thresh Threshold similarity score used to remove edge between two sequences if not similar enough
 #' @param k_size k-mer size for MinHash algorithm (default: k_size = 2)
 #' @param hash_size Hash function size for MinHash algorithm (default: hash_size = 50)
 #' @param size_max Maximum size of cluster desired (default: size_max = 10)
@@ -30,7 +31,7 @@ netcluster<-function(pepmat,igraph_mode="upper",igraph_weight=TRUE,louvain_resol
 #' @return A nx2 matrix with a column containing n peptide sequences and their corresponding cluster assignment
 #' @export
 #' 
-clusterbreak <- function(pep, k_size=2, hash_size=50, size_max=10, size_min=3, sens=1.05, max_itr=500) {
+clusterbreak <- function(pep, thresh=0.8,k_size=2, hash_size=50, size_max=10, size_min=3, sens=1.05, max_itr=500) {
   if (size_max <= size_min) {
     stop("size_max must be greater than size_min")
   }
@@ -61,7 +62,9 @@ clusterbreak <- function(pep, k_size=2, hash_size=50, size_max=10, size_min=3, s
     }
     
     pep.sim <- minhash(pep, k_size, hash_size)  #minhash similarity matrix
-    c.index <- netcluster(pep.sim$dist_matrix, louvain_resolution=sens) #cluster id
+    pep.sim <- pep.sim$dist_matrix
+    pep.sim[pep.sim<thresh] <- 0 # remove edges from nodes with similarity below threshold
+    c.index <- netcluster(pep.sim, louvain_resolution=sens) #cluster id
     pep.ref <- cbind(pep, c.index) # combine cluster id with sequences
     c.size <- tabulate(c.index) # count each cluster size
     id.itr <- which(c.size > size_max) # cluster id above max size
