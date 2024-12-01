@@ -498,10 +498,85 @@ igraph::E(test.consensus.g)$weight
 
 test.consensus.g.c<-igraph::cluster_louvain(test.consensus.g,weights=igraph::E(test.consensus.g)$weight,resolution=1.08)
 test.consensus.g.c
-test.consensus.g.c<-igraph::cluster_louvain(test.consensus.g,resolution=1.08)
-test.consensus.g.c
+# test.consensus.g.c<-igraph::cluster_louvain(test.consensus.g,resolution=1.08)
+# test.consensus.g.c
   plot(test.consensus.g.c,test.consensus.g)
   plot(test.consensus.g, vertex.color = igraph::membership(test.consensus.g.c))
+
+  layout <- igraph::layout_with_fr(test.consensus.g, weights = igraph::E(test.consensus.g)$weight)
+
+# plot(test.consensus.g, layout = layout, vertex.size = 15) 
+  plot(test.consensus.g.c,test.consensus.g,layout = layout, vertex.size = 15)
+  igraph::V(test.consensus.g)$name <- test.consensus[,1]
+# igraph::V(test.consensus.g)$degree
+# try function writing 
+  
+#' Plot consensus sequences for each cluster
+#'
+#' @param df Input clusterconsensus function
+#' @param n Number to multiply by.
+#' @return A clustered graph network 
+#' @importFrom igraph graph_from_adjacency_matrix E cluster_louvain V layout_with_fr
+#' @export
+consensusplot<-function(df,k_size=2, hash_size=50,threshold=0.8,sens=1.05,...){
+  #similarity matrix and adjacency matrix
+  df.hash<-minhash(df[,2],k_size,hash_size)
+  df.hash<-df.hash$dist_matrix
+  df.hash[df.hash<threshold]<-0
+  #plot call
+  g<-igraph::graph_from_adjacency_matrix(df.hash,mode="upper",weighted=TRUE) # base plot
+  g.weight<-igraph::E(g)$weight # edge weight
+  g.cluster<-igraph::cluster_louvain(g,weights=g.weight,resolution=sens) # cluster using weights
+  igraph::modularity(g.cluster)
+  
+
+  
+  g.layout<-igraph::layout_with_fr(g, weights = g.weight) #set layout for plot
+  igraph::V(g)$name <- df[,1]#set node names to cluster name
+  g.out<-plot(g.cluster,g,layout = g.layout, ...)
+}
+  df=test.consensus
+  consensusplot(df)
+  
+louvain_mod<-function(gin,res,res_range=-1,res_step=-1,itr){
+  if (res_range==-1){#set default resolution range as +-20% of the set resolution
+    res_range=.2*res
+  }
+  if(res_step==-1){#set default step size to be 10% of range
+    res_step=2*res_range/10
+  }
+  res=seq(res - res_range, res + res_range, by = res_step)# set range of resolution parameters
+  
+  
+
+  best_modularity <- NULL
+  best_clusters <- NULL
+  best_resolution<-NULL
+  for (j in seq_along(res)){
+    if (j==res[1]){
+      best_resolution=j
+    }
+  for (i in 1:itr) {#iteration loop
+    gin.cluster<-igraph::cluster_louvain(gin,weights=igraph::E(gin)$weight,resolution=j) # cluster using weights
+    gin.mod<-  igraph::modularity(gin.cluster)#obtain modularity
+    
+    if(i==1){#initial loop
+      best_modularity <- igraph::modularity(clusters)
+      best_clusters <- gin.cluster
+    }
+    if (i>1 & modularity(clusters) > best_modularity) {#replace initial values if higher modularity
+      best_modularity <- igraph::modularity(clusters)
+      best_clusters <- gin.cluster
+      best_resolution<-j
+    }
+  }
+  }
+ 
+  return(list(cluster=best_clusters,
+                 resolution=best_resolution,
+                 modularity=best_modularity))
+}
+louvain_mod(g)
 ```
 
 ```{r function_documentation}
