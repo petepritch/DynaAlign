@@ -4,16 +4,40 @@ Sys.setenv("OMP_NUM_THREADS" = parallel::detectCores())
 #' @importFrom Rcpp sourceCpp
 NULL
 
-#' Calculate Sequence Similarity Matrix
+#' Calculate Pairwise Sequence Similarity Matrix
 #' 
-#' @param sequences A character vector containing sequences
-#' @return A numeric matrix of pairwise sequence similarities
+#' @param sequences A character vector containing peptide sequences.
+#' @param matrix_type The substitution matrix to use. Options are "BLOSUM45", 
+#'                   "BLOSUM50", "BLOSUM62", "BLOSUM80", "BLOSUM90", "BLOSUM100". 
+#'                   Default is "BLOSUM62".
+#' @param gap_open Gap opening penalty. Default is 10.
+#' @param gap_ext Gap extension penalty. Default is 4.
+#' 
+#' @return A numeric matrix of pairwise sequence similarities, with values 
+#'         normalized between 0 and 1.
+#' 
+#' @details This function performs pairwise sequence alignment using the 
+#'          Needleman-Wunsch algorithm with the specified scoring matrix and 
+#'          gap penalties. Results are normalized to provide similarity scores 
+#'          between 0 and 1.
+#' 
+#' @examples
+#' sequences <- c("HEAGAWGHEE", "PAWHEAE", "HEAGAWGHEE")
+#' sim_matrix <- get_similarity_psa(sequences)
+#' 
 #' @export
-get_similarity_psa <- function(sequences) {
+get_similarity_psa <- function(sequences, 
+                               matrix_type = "BLOSUM62",
+                               gap_open = 10, 
+                               gap_ext = 4) {
   if(!is.character(sequences)) {
     stop("Input must be a character vector of sequences")
   }
-  calculateSimilarityMatrix(sequences)
+  sim_matrix <- calculateSimilarityMatrix(sequences, 
+                                          matrixName = matrix_type,
+                                          gapOpen = gap_open, 
+                                          gapExt = gap_ext)
+  return(sim_matrix)
 }
 
 #' @importFrom Rcpp sourceCpp
