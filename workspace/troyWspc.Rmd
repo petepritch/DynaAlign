@@ -28,9 +28,10 @@ netcluster<-function(pepmat,igraph_mode="upper",igraph_weight=TRUE,louvain_resol
 }
 netcluster(dist.matrix)
 
-
-igraph::graph_from_adjacency_matrix(pepmat,mode=igraph_mode,weighted=igraph_weight)
-test.cluster=igraph::cluster_louvain(test.net,weights = igraph::E(test.net),resolution=2)
+dist.matrix1=dist.matrix
+dist.matrix1[1:10,1:10]=-dist.matrix1[1:10,1:10]
+test.net=igraph::graph_from_adjacency_matrix(dist.matrix,mode="upper",weighted=TRUE)
+test.cluster=igraph::cluster_louvain(test.net,weights = igraph::E(test.net)$weight,resolution=2)
 
 plot(test.cluster,test.net)
 test.cluster$membership
@@ -471,6 +472,13 @@ t.hash=minhash(test[,1],2,50)
   plot(t.cluster,t.network)
 ```
 ```{r consensus}
+#' Generate consensus sequence
+#'
+#' @param df Input clusterbreak output df
+#' @return df with first column being unique cluster id and second column being the corresponding consensus sequence
+#' @importFrom Biostrings AAStringSet
+#' @importFrom DECIPHER AlignSeqs ConsensusSequence
+#' @export
 clusterconsensus<-function(df){
   cluster.id<-unique(df[,2])
   out.df<-matrix(nrow=0,ncol=2)
@@ -511,11 +519,13 @@ test.consensus.g.c
 # igraph::V(test.consensus.g)$degree
 # try function writing 
   
-#' Plot consensus sequences for each cluster
+#' Plot consensus sequences for each cluster in a clustered network
 #'
-#' @param df Input clusterconsensus function
-#' @param n Number to multiply by.
-#' @return A clustered graph network 
+#' @param df Input clusterconsensus function output
+#' @param k_size minhash kmer size
+#' @param threshold binary threshold for adjacency matrix
+#' @param sens Louvain algorithm sensitivity
+#' @return hash_size hash function size
 #' @importFrom igraph graph_from_adjacency_matrix E cluster_louvain V layout_with_fr
 #' @export
 consensusplot<-function(df,k_size=2, hash_size=50,threshold=0.8,sens=1.05,...){
@@ -527,9 +537,6 @@ consensusplot<-function(df,k_size=2, hash_size=50,threshold=0.8,sens=1.05,...){
   g<-igraph::graph_from_adjacency_matrix(df.hash,mode="upper",weighted=TRUE) # base plot
   g.weight<-igraph::E(g)$weight # edge weight
   g.cluster<-igraph::cluster_louvain(g,weights=g.weight,resolution=sens) # cluster using weights
-  igraph::modularity(g.cluster)
-  
-
   
   g.layout<-igraph::layout_with_fr(g, weights = g.weight) #set layout for plot
   igraph::V(g)$name <- df[,1]#set node names to cluster name
@@ -537,37 +544,40 @@ consensusplot<-function(df,k_size=2, hash_size=50,threshold=0.8,sens=1.05,...){
 }
   df=test.consensus
   consensusplot(df)
-  
-louvain_mod<-function(gin,res,res_range=-1,res_step=-1,itr){
-  if (res_range==-1){#set default resolution range as +-20% of the set resolution
-    res_range=.2*res
-  }
-  if(res_step==-1){#set default step size to be 10% of range
-    res_step=2*res_range/10
-  }
-  res=seq(res - res_range, res + res_range, by = res_step)# set range of resolution parameters
-  
-  
 
+#' Modified Louvain Clustering function
+#'
+#' @param gin Input network.
+#' @param res Louvain algorithm sensitivity.
+#' @param res_range Percent of sensitivity for the function loop over for best modularity.
+#' @param res_step Number of even breaks over the sensitivity range.
+#' @param itr Number of iteration over each break point. 
+#' @return A clustered graph network optimized for modularity
+#' @importFrom igraph graph_from_adjacency_matrix E cluster_louvain V layout_with_fr
+#' @export
+louvain_mod<-function(gin,res,res_range_perc=0,res_step=0,itr=3){
+
+  res=seq(res - res_range_perc*res, res + res_range_perc*res, by = res_step)# set range of resolution parameters
+  
   best_modularity <- NULL
   best_clusters <- NULL
   best_resolution<-NULL
   for (j in seq_along(res)){
-    if (j==res[1]){
-      best_resolution=j
+    if (j==1){
+      best_resolution<-res[j]
     }
   for (i in 1:itr) {#iteration loop
-    gin.cluster<-igraph::cluster_louvain(gin,weights=igraph::E(gin)$weight,resolution=j) # cluster using weights
+    gin.cluster<-igraph::cluster_louvain(gin,weights=igraph::E(gin)$weight,resolution=res[j]) # cluster using weights
     gin.mod<-  igraph::modularity(gin.cluster)#obtain modularity
     
     if(i==1){#initial loop
-      best_modularity <- igraph::modularity(clusters)
+      best_modularity <- gin.mod
       best_clusters <- gin.cluster
     }
-    if (i>1 & modularity(clusters) > best_modularity) {#replace initial values if higher modularity
-      best_modularity <- igraph::modularity(clusters)
+    if (i>1 & gin.mod > best_modularity) {#replace initial values if higher modularity
+      best_modularity <- gin.mod
       best_clusters <- gin.cluster
-      best_resolution<-j
+      best_resolution<-res[j]
     }
   }
   }
@@ -576,7 +586,34 @@ louvain_mod<-function(gin,res,res_range=-1,res_step=-1,itr){
                  resolution=best_resolution,
                  modularity=best_modularity))
 }
-louvain_mod(g)
+seq(1,1,by=0)
+test1=louvain_mod(test.net,res=1.05)
+test1$cluster$membership
+gin=test.net
+
+
+netcluster<-function(pepmat,igraph_mode="upper",igraph_weight=TRUE,louvain_resolution=1.05,louvain_range_perc=0,louvain_step=0,louvain_itr=3){
+  if(nrow(pepmat)!=ncol(pepmat)) {
+    stop("Input must be a square pairwise similarity matrix")
+  }
+  network<-igraph::graph_from_adjacency_matrix(pepmat,mode=igraph_mode,weighted=igraph_weight)
+  # cluster.n<-igraph::cluster_louvain(network,weights=igraph::E(network)$weight,resolution=louvain_resolution)
+  cluster.n<-louvain_mod(network,res=louvain_resolution,res_range_perc=louvain_range_perc,res_step=louvain_step,itr=louvain_itr)
+  return(cluster.n$cluster$membership)
+}
+
+# netcluster<-function(pepmat,igraph_mode="upper",igraph_weight=TRUE,louvain_resolution=1.05){
+#   if(nrow(pepmat)!=ncol(pepmat)) {
+#     stop("Input must be a square pairwise similarity matrix")
+#   }
+#   network<-igraph::graph_from_adjacency_matrix(pepmat,mode=igraph_mode,weighted=igraph_weight)
+#   cluster<-igraph::cluster_louvain(network,weights=igraph::E(network)$weight,resolution=louvain_resolution)
+#   return(cluster$membership)
+# }
+
+netcluster(dist.matrix)
+
+clusterbreak()
 ```
 
 ```{r function_documentation}
@@ -592,6 +629,95 @@ louvain_mod(g)
 
 ```{r v5}
 clusterbreak <- function(pep, thresh=0.8,k_size=2, hash_size=50, size_max=10, size_min=3, sens=1.05, max_itr=500) {
+  if (size_max <= size_min) {
+    stop("size_max must be greater than size_min")
+  }
+  if (length(pep) == 0) {
+    stop("empty input sequence vector")
+  }
+  
+  # Create new state environment
+  state <- new.env()
+  state$out.df <- matrix(nrow = 0, ncol = 2)
+  state$itr <- 1
+  state$clusters_processed <- 0
+  state$convergence <- 1
+  
+  cluster_recursive <- function(pep) {
+    
+    # Create helper function for logging adapted from Claude AI prompt
+    log_message <- function(msg, level="INFO") {
+      timestamp <- format(Sys.time(), "%H:%M:%S")
+      cat(sprintf("[%s] %s: %s\n", timestamp, level, msg))
+    }
+    
+    if (state$itr > max_itr) {
+      log_message("Maximum function calls reached", "WARNING")
+      state$convergence<-0 # change status to not converged since max itr reached
+      return(state$out.df)
+      break
+    }
+    
+    pep.sim <- minhash(pep, k_size, hash_size)  #minhash similarity matrix
+    pep.sim <- pep.sim$dist_matrix
+    pep.sim[pep.sim<thresh] <- 0 # remove edges from nodes with similarity below threshold
+    c.index <- netcluster(pep.sim, louvain_resolution=sens) #cluster id
+    pep.ref <- cbind(pep, c.index) # combine cluster id with sequences
+    c.size <- tabulate(c.index) # count each cluster size
+    id.itr <- which(c.size > size_max) # cluster id above max size
+    id.rm <- which(c.size < size_min) # cluster id below min size
+    
+    # stop or recursion conditions for output
+    if (length(id.itr) == 0) {  
+      out.pep <- pep.ref[!pep.ref[,2] %in% id.rm,] # filter out those under minimum length
+      if (nrow(out.pep) > 0) { #ensure non-empty output
+        out.pep[,2] <- paste0(state$itr, ".", out.pep[,2]) #combine iteration and cluster to ensure uniqueness
+        state$out.df <- rbind(state$out.df, out.pep) # combine output df
+        state$clusters_processed <- state$clusters_processed + nrow(out.pep) # sum number of clusters processed
+      }
+    } else {
+      pep.out <- pep.ref[(!pep.ref[,2] %in% id.rm) & (!pep.ref[,2] %in% id.itr),] # recursion condition
+      if (nrow(pep.out) > 0) {
+        pep.out[,2] <- paste0(state$itr, ".", pep.out[,2])#combine iteration and cluster to ensure uniqueness
+        state$out.df <- rbind(state$out.df, pep.out)# combine output df
+        state$clusters_processed <- state$clusters_processed + nrow(pep.out)# sum number of clusters processed
+      }
+      
+      # filter remaining clusters
+      pep.new <- pep.ref[pep.ref[,2] %in% id.itr,]#clusters with size > max
+      loop.lvl <- unique(pep.new[,2])#set levels for loop
+      
+      # loop for remaining qualified clusters
+      for (i in seq_along(loop.lvl)) {
+        sub.df <- pep.new[pep.new[,2] == loop.lvl[i], 1] #filter ith cluster
+        state$itr <- state$itr + 1 #increment for iteration/function call
+        cluster_recursive(sub.df) #recursive call
+      }
+    }
+    
+    return(state$out.df)
+  }
+  
+  # run recursive clustering
+  result <- cluster_recursive(pep)
+  
+  # Final status report adapted from claude AI output
+  if (state$convergence==1){
+    cat(sprintf("\nClustering complete:\n"))
+  }else{
+    cat(sprintf("\nClustering incomplete, consider adjusting parameters:\n"))
+  }
+  cat(sprintf("Total clusters processed: %d\n", state$clusters_processed))
+  cat(sprintf("Total function calls: %d\n", state$itr))
+  
+  rm(state) # reset state global 
+  
+  return(result)
+}
+```
+
+```{r v7_12_02}
+clusterbreak <- function(pep, thresh=0.8,k_size=2, hash_size=50, size_max=10, size_min=3, sens=1.05, max_itr=10000) {
   if (size_max <= size_min) {
     stop("size_max must be greater than size_min")
   }
