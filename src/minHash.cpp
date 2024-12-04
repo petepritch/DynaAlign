@@ -64,86 +64,70 @@ private:
   
 public:
   HashFamily(int num_hash) {
-    seeds.reserve(num_hash);  // Pre-allocate memory
-    // Better seed generation
+    seeds.resize(num_hash);
     for(int i = 0; i < num_hash; ++i) {
-      seeds.push_back(murmur3_32((char*)&i, sizeof(i), 0x9747b28c));
+      seeds[i] = i + 1;  // Simple seed generation
     }
   }
   
-  uint32_t hash(const string& s, int index) const {  // Made const
+  uint32_t hash(const string& s, int index) {
     return murmur3_32(s.c_str(), s.length(), seeds[index]);
   }
 };
 
-// Improved k-mer generation with pre-allocation
-inline vector<string> generate_kmers(const string& seq, int k) {
+// Generate k-mers from a sequence
+vector<string> generate_kmers(const string& seq, int k) {
   vector<string> kmers;
-  size_t expected_size = seq.length() - k + 1;
-  kmers.reserve(expected_size);  // Pre-allocate memory
-  
-  for(size_t i = 0; i <= seq.length() - k; ++i) {
-    kmers.push_back(seq.substr(i, k));
+  if (seq.length() >= k) {
+    for(size_t i = 0; i <= seq.length() - k; ++i) {
+      kmers.push_back(seq.substr(i, k));
+    }
   }
   return kmers;
 }
 
 // [[Rcpp::export]]
-NumericMatrix minhash_similarity_matrix(CharacterVector sequences, int k = 2, int num_hash = 50) {
+NumericMatrix minhash_similarity_matrix(CharacterVector sequences, int k = 4, int num_hash = 50) {
   size_t n = sequences.length();
   NumericMatrix similarityMatrix(n, n);
   
   // Initialize hash family
-  const HashFamily hash_family(num_hash);  // Made const
+  HashFamily hash_family(num_hash);
   
-  // Pre-allocate memory for all signatures
-  vector<vector<uint32_t>> signatures(n);
-  for(auto& sig : signatures) {
-    sig.resize(num_hash, UINT32_MAX);
-  }
+  // Store signatures for each sequence
+  vector<vector<uint32_t>> signatures(n, vector<uint32_t>(num_hash, UINT32_MAX));
   
-  // Generate signatures in parallel
-#pragma omp parallel for schedule(dynamic) if(n > 1000)
+  // Generate signatures
   for(size_t i = 0; i < n; ++i) {
     string seq = as<string>(sequences[i]);
     vector<string> kmers = generate_kmers(seq, k);
     
-    // Local signature array for thread safety
-    vector<uint32_t>& signature = signatures[i];
-    
+    // For each k-mer, update signature
     for(const string& kmer : kmers) {
       for(int h = 0; h < num_hash; ++h) {
         uint32_t hash_value = hash_family.hash(kmer, h);
-        signature[h] = min(signature[h], hash_value);
+        signatures[i][h] = min(signatures[i][h], hash_value);
       }
     }
   }
   
-  // Calculate similarities in parallel
-#pragma omp parallel for schedule(dynamic) collapse(2) if(n > 1000)
+  // Calculate similarities
   for(size_t i = 0; i < n; ++i) {
-    for(size_t j = i; j < n; ++j) {
-      if(i == j) {
-        similarityMatrix(i,i) = 1.0;
-        continue;
-      }
-      
-      // SIMD-friendly array comparison
-      const vector<uint32_t>& sig1 = signatures[i];
-      const vector<uint32_t>& sig2 = signatures[j];
-      
+    similarityMatrix(i,i) = 1.0;  // Diagonal elements
+    for(size_t j = i+1; j < n; ++j) {
       int matches = 0;
       for(int h = 0; h < num_hash; ++h) {
-        matches += (sig1[h] == sig2[h]);
+        if(signatures[i][h] == signatures[j][h]) {
+          ++matches;
+        }
       }
-      
       double similarity = static_cast<double>(matches) / num_hash;
       similarityMatrix(i,j) = similarity;
       similarityMatrix(j,i) = similarity;
     }
   }
   
-  // Add dimension names
+  // Add dimension names (1,2,3...)
   CharacterVector labels(n);
   for(size_t i = 0; i < n; ++i) {
     labels[i] = to_string(i + 1);
