@@ -12,7 +12,8 @@ LazyData: true
 LinkingTo: Rcpp
 Imports:
     Rcpp,
-    methods
+    methods,
+    igraph
 Suggets:
     testthat
 Depends: 

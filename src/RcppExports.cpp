@@ -23,37 +23,24 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// needleman_wunsch_score
-double needleman_wunsch_score(const std :: string& sequence1, const std :: string& sequence2, int matchScore, int mismatchPenalty, int gapPenalty);
-RcppExport SEXP _DynaAlign_needleman_wunsch_score(SEXP sequence1SEXP, SEXP sequence2SEXP, SEXP matchScoreSEXP, SEXP mismatchPenaltySEXP, SEXP gapPenaltySEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const std :: string& >::type sequence1(sequence1SEXP);
-    Rcpp::traits::input_parameter< const std :: string& >::type sequence2(sequence2SEXP);
-    Rcpp::traits::input_parameter< int >::type matchScore(matchScoreSEXP);
-    Rcpp::traits::input_parameter< int >::type mismatchPenalty(mismatchPenaltySEXP);
-    Rcpp::traits::input_parameter< int >::type gapPenalty(gapPenaltySEXP);
-    rcpp_result_gen = Rcpp::wrap(needleman_wunsch_score(sequence1, sequence2, matchScore, mismatchPenalty, gapPenalty));
-    return rcpp_result_gen;
-END_RCPP
-}
 // calculateSimilarityMatrix
-NumericMatrix calculateSimilarityMatrix(CharacterVector sequences);
-RcppExport SEXP _DynaAlign_calculateSimilarityMatrix(SEXP sequencesSEXP) {
+NumericMatrix calculateSimilarityMatrix(CharacterVector sequences, std::string matrixName, int gapOpen, int gapExt);
+RcppExport SEXP _DynaAlign_calculateSimilarityMatrix(SEXP sequencesSEXP, SEXP matrixNameSEXP, SEXP gapOpenSEXP, SEXP gapExtSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< CharacterVector >::type sequences(sequencesSEXP);
-    rcpp_result_gen = Rcpp::wrap(calculateSimilarityMatrix(sequences));
+    Rcpp::traits::input_parameter< std::string >::type matrixName(matrixNameSEXP);
+    Rcpp::traits::input_parameter< int >::type gapOpen(gapOpenSEXP);
+    Rcpp::traits::input_parameter< int >::type gapExt(gapExtSEXP);
+    rcpp_result_gen = Rcpp::wrap(calculateSimilarityMatrix(sequences, matrixName, gapOpen, gapExt));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
     {"_DynaAlign_minhash_similarity_matrix", (DL_FUNC) &_DynaAlign_minhash_similarity_matrix, 3},
-    {"_DynaAlign_needleman_wunsch_score", (DL_FUNC) &_DynaAlign_needleman_wunsch_score, 5},
-    {"_DynaAlign_calculateSimilarityMatrix", (DL_FUNC) &_DynaAlign_calculateSimilarityMatrix, 1},
+    {"_DynaAlign_calculateSimilarityMatrix", (DL_FUNC) &_DynaAlign_calculateSimilarityMatrix, 4},
     {NULL, NULL, 0}
 };
 

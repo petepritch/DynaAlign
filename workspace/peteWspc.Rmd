@@ -2,18 +2,12 @@
 library(glue)
 ```
 
-```{r load_data}
-file <- 'C:/Users/petep/OneDrive/Documents/Projects/DynaAlign/data/testData/EVP-PepArray_IgG_191213_27Jan2023_MDS_Long_COVID_19_vs_MECFS_Case_Serum.wDescr.sorted.csv'
-
-df <- read.csv(file)
+```{r}
+data('evp_peparray')
 ```
 
 ```{r}
-head(df)
-```
-```{r}
-peptides <- df$PROBE_SEQUENCE
-length(peptides)
+peptides <- evp_peparray$PROBE_SEQUENCE
 ```
 
 
