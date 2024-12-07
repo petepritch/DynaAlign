@@ -2,8 +2,6 @@
 
 ## Description
 
-DynaAlign is an open-source package for performing multiple sequence alignment using, computing similarity matricies, and graph clustering using MinHash.
-
 DynaAlign is an open-sourced R package designed for scalable protein sequence clustering, visualization, and consensus sequence generation, leveraging high-performance algorithms for large-scale peptide data analysis.
 
 ## Key Features
