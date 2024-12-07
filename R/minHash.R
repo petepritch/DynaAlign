@@ -33,11 +33,10 @@ NULL
 #' @examples
 #' shingle("ABCDEF", 3) # Returns c("ABC", "BCD", "CDE", "DEF")
 shingle <- function(x, k) {
-  # Error handling
   if (!is.character(x) || length(x) != 1)
-    stop("x must be a single character string")
-  if (!is.numeric(k) || k < 1 || k > nchar(x))
-    stop("k must be a positive integer less than or equal to string length") # Implementation
+    stop("Input 'x' must be a single character string", call. = FALSE)
+  if (!is.numeric(k) || length(k) != 1 || k < 1 || k > nchar(x))
+    stop(sprintf("'k' must be a positive integer between 1 and %d", nchar(x)), call. = FALSE)
   n <- nchar(x)
   shingles <- vector("character", length = n - k + 1)
   for (i in 1:(n - k + 1)) {
@@ -82,16 +81,10 @@ create_vocab <- function(sequences, k) {
 #' vocab <- create_vocab(sequences, k = 3)
 #' create_char_matrix(sequences, vocab, k = 3)
 create_char_matrix <- function(sequences, vocab, k) {
-  
-  n_seq <- length(sequences)
-  n_shingles <- length(vocab)
-  char_matrix <- matrix(0, nrow = n_shingles, ncol = n_seq)
-  
-  for (i in 1:n_seq) {
-    seq_shingles <- shingle(sequences[i], k)
-    char_matrix[vocab %in% seq_shingles, i] <- 1
-  }
-  
+  seq_shingles <- lapply(sequences, shingle, k = k)
+  char_matrix <- sapply(seq_shingles, function(shingles) {
+    as.integer(vocab %in% shingles)
+  })
   return(char_matrix)
 }
 
@@ -109,6 +102,9 @@ create_char_matrix <- function(sequences, vocab, k) {
 #'
 #' @examples create_hash_parameters(n_hash = 10, max_val = 100)
 create_hash_parameters <- function(n_hash, max_val) {
+  if (n_hash < 1) stop("Number of hash functions must be positive")
+  if (max_val < 2) stop("Maximum value must be at least 2")
+  
   a_values <- sample(1:max_val, n_hash, replace = TRUE)
   b_values <- sample(0:max_val, n_hash, replace = TRUE)
   return(list(a = a_values, b = b_values))

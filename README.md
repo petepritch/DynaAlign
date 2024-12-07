@@ -39,7 +39,7 @@ This software was developed for partial credit BIOSTAT 615 Statistical Computing
 5. Create a pull request
 
 # Development
-University of Michigan, Ann Arbor
+Department of Biostatistics @ The University of Michigan, Ann Arbor
 
 ## Authors
 - Pete Pritchard
