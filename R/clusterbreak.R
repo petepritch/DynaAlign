@@ -1,14 +1,3 @@
-.onLoad <- function(libname, pkgname) {
-  bioc_packages <- c("Biostrings", "DECIPHER")
-  for (pkg in bioc_packages) {
-    if (!requireNamespace(pkg, quietly = TRUE)) {
-      message(sprintf("Installing missing Bioconductor package: %s", pkg))
-      BiocManager::install(pkg, ask = FALSE)
-    }
-  }
-}
-
-
 #' Modified Louvain Clustering function
 #'
 #' @param gin Input network.

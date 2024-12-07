@@ -1,3 +1,6 @@
+#ifndef MINHASH_HPP
+#define MINHASH_HPP
+
 #include <Rcpp.h>
 #include <string>
 #include <vector>
@@ -345,3 +348,5 @@ NumericMatrix calculateSimilarityMatrix(CharacterVector sequences,
   
   return similarityMatrix;
 }
+
+#endif

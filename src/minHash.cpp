@@ -1,3 +1,6 @@
+#ifndef MINHASH_HPP
+#define MINHASH_HPP
+
 #include <Rcpp.h>
 #include <string>
 #include <vector>
@@ -78,7 +81,7 @@ public:
 // Generate k-mers from a sequence
 vector<string> generate_kmers(const string& seq, int k) {
   vector<string> kmers;
-  if (seq.length() >= k) {
+  if (seq.length() >= static_cast<std::size_t>(k)) {
     for(size_t i = 0; i <= seq.length() - k; ++i) {
       kmers.push_back(seq.substr(i, k));
     }
@@ -87,15 +90,23 @@ vector<string> generate_kmers(const string& seq, int k) {
 }
 
 // [[Rcpp::export]]
-NumericMatrix minhash_similarity_matrix(CharacterVector sequences, int k = 4, int num_hash = 50) {
+NumericMatrix minhash_similarity_matrix(CharacterVector sequences, int k = 4, int n_hash = 50) {
   size_t n = sequences.length();
   NumericMatrix similarityMatrix(n, n);
   
+  // Input validation
+  if (k <= 0) {
+    Rcpp::stop("'k' must be a positive integer");
+  }
+  if (n_hash <= 0) {
+    Rcpp::stop("Number of hash functions must be positve");
+  }
+  
   // Initialize hash family
-  HashFamily hash_family(num_hash);
+  HashFamily hash_family(n_hash);
   
   // Store signatures for each sequence
-  vector<vector<uint32_t>> signatures(n, vector<uint32_t>(num_hash, UINT32_MAX));
+  vector<vector<uint32_t>> signatures(n, vector<uint32_t>(n_hash, UINT32_MAX));
   
   // Generate signatures
   for(size_t i = 0; i < n; ++i) {
@@ -104,7 +115,7 @@ NumericMatrix minhash_similarity_matrix(CharacterVector sequences, int k = 4, in
     
     // For each k-mer, update signature
     for(const string& kmer : kmers) {
-      for(int h = 0; h < num_hash; ++h) {
+      for(int h = 0; h < n_hash; ++h) {
         uint32_t hash_value = hash_family.hash(kmer, h);
         signatures[i][h] = min(signatures[i][h], hash_value);
       }
@@ -116,12 +127,12 @@ NumericMatrix minhash_similarity_matrix(CharacterVector sequences, int k = 4, in
     similarityMatrix(i,i) = 1.0;  // Diagonal elements
     for(size_t j = i+1; j < n; ++j) {
       int matches = 0;
-      for(int h = 0; h < num_hash; ++h) {
+      for(int h = 0; h < n_hash; ++h) {
         if(signatures[i][h] == signatures[j][h]) {
           ++matches;
         }
       }
-      double similarity = static_cast<double>(matches) / num_hash;
+      double similarity = static_cast<double>(matches) / n_hash;
       similarityMatrix(i,j) = similarity;
       similarityMatrix(j,i) = similarity;
     }
@@ -136,3 +147,5 @@ NumericMatrix minhash_similarity_matrix(CharacterVector sequences, int k = 4, in
   
   return similarityMatrix;
 }
+
+#endif // MINHASH_HPP
