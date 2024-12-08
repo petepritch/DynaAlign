@@ -1,18 +1,23 @@
+#ifndef MINHASH_HPP
+#define MINHASH_HPP
+
 #include <Rcpp.h>
 #include <string>
 #include <vector>
 #include <unordered_set>
 #include <algorithm>
+#include <random>
 
 // Add OpenMP if available
 #ifdef _OPENMP
 #include <omp.h>
 #endif
 
-using namespace std;
+// Namespace declarations
 using namespace Rcpp;
+using namespace std;
 
-// MurmurHash3 implementation
+// MurmurHash3 implementation (remains largely the same)
 uint32_t murmur3_32(const char* key, size_t len, uint32_t seed) {
   static const uint32_t c1 = 0xcc9e2d51;
   static const uint32_t c2 = 0x1b873593;
@@ -24,7 +29,7 @@ uint32_t murmur3_32(const char* key, size_t len, uint32_t seed) {
   uint32_t hash = seed;
   
   const int nblocks = len / 4;
-  const uint32_t* blocks = (const uint32_t*)(key);
+  const uint32_t* blocks = reinterpret_cast<const uint32_t*>(key);
   
   for(int i = 0; i < nblocks; i++) {
     uint32_t k = blocks[i];
@@ -35,7 +40,7 @@ uint32_t murmur3_32(const char* key, size_t len, uint32_t seed) {
     hash = ((hash << r2) | (hash >> (32 - r2))) * m + n;
   }
   
-  const uint8_t* tail = (const uint8_t*)(key + nblocks * 4);
+  const uint8_t* tail = reinterpret_cast<const uint8_t*>(key + nblocks * 4);
   uint32_t k1 = 0;
   
   switch(len & 3) {
@@ -58,28 +63,40 @@ uint32_t murmur3_32(const char* key, size_t len, uint32_t seed) {
   return hash;
 }
 
-// Hash family class for multiple hash functions
+// Enhanced Hash Family class with better seed generation
 class HashFamily {
 private:
   vector<uint32_t> seeds;
   
 public:
-  HashFamily(int num_hash) {
+  // Use random seed generation 
+  HashFamily(int num_hash, unsigned int seed = random_device{}()) {
     seeds.resize(num_hash);
+    mt19937 gen(seed);
+    uniform_int_distribution<uint32_t> dis;
+    
     for(int i = 0; i < num_hash; ++i) {
-      seeds[i] = i + 1;  // Simple seed generation
+      seeds[i] = dis(gen);
     }
   }
   
-  uint32_t hash(const string& s, int index) {
+  uint32_t hash(const string& s, int index) const {
+    if (index < 0 || index >= static_cast<int>(seeds.size())) {
+      Rcpp::stop("Hash function index out of range");
+    }
     return murmur3_32(s.c_str(), s.length(), seeds[index]);
   }
 };
 
-// Generate k-mers from a sequence
+// Generate k-mers from a sequence (with additional input validation)
 vector<string> generate_kmers(const string& seq, int k) {
   vector<string> kmers;
-  if (seq.length() >= static_cast<std::size_t>(k)) {
+  if (k <= 0) {
+    Rcpp::warning("k must be a positive integer. Returning empty k-mer list.");
+    return kmers;
+  }
+  
+  if (seq.length() >= static_cast<size_t>(k)) {
     for(size_t i = 0; i <= seq.length() - k; ++i) {
       kmers.push_back(seq.substr(i, k));
     }
@@ -87,9 +104,10 @@ vector<string> generate_kmers(const string& seq, int k) {
   return kmers;
 }
 
-// MinHash Similarity Matrix Computation
-//' Compute MinHash Similarity Matrix
+//' @name similarityMH
+//' @title Compute MinHash Similarity Matrix
  //' 
+ //' @description
  //' This function computes a similarity matrix using the MinHash technique
  //' 
  //' @param sequences A character vector of input sequences
@@ -99,10 +117,15 @@ vector<string> generate_kmers(const string& seq, int k) {
  //' @export
  // [[Rcpp::export]]
  NumericMatrix similarityMH(CharacterVector sequences, int k = 4, int n_hash = 50) {
-   // Input validation
+   // Comprehensive input validation
+   if (sequences.length() == 0) {
+     Rcpp::stop("Input sequences vector cannot be empty");
+   }
+   
    if (k <= 0) {
      Rcpp::stop("'k' must be a positive integer");
    }
+   
    if (n_hash <= 0) {
      Rcpp::stop("Number of hash functions must be positive");
    }
@@ -110,7 +133,7 @@ vector<string> generate_kmers(const string& seq, int k) {
    size_t n = sequences.length();
    NumericMatrix similarityMatrix(n, n);
    
-   // Initialize hash family
+   // Initialize hash family with random seed
    HashFamily hash_family(n_hash);
    
    // Store signatures for each sequence
@@ -164,16 +187,4 @@ vector<string> generate_kmers(const string& seq, int k) {
    return similarityMatrix;
  }
 
-// Additional helper functions can be added here if needed
-
-// Rcpp module registration
-#include <Rcpp.h>
-
-RCPP_MODULE(minhash_module) {
-  Rcpp:function("similarityMH", &similarityMH, 
-           "Compute MinHash similarity matrix for input sequences\n"
-           "@param sequences Character vector of input sequences\n"
-           "@param k Length of k-mers to use\n"
-           "@param n_hash Number of hash functions\n"
-           "@return Numeric matrix of pairwise sequence similarities");
-}
+#endif // MINHASH_HPP

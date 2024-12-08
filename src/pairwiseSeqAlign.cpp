@@ -312,6 +312,21 @@ double calculate_similarity(const string &sequence1, const string &sequence2,
   return similarity;
 }
 
+//' @name similarityNW
+//' @title Sequence Alignment using Needleman-Wunsch Algorithm
+//' 
+//' @description
+//' This function performs global sequence alignment using the Needleman-Wunsch algorithm. 
+//' It leverages substitution matrices (e.g., BLOSUM62, BLOSUM45, BLOSUM50, or BLOSUM80) 
+//' to score alignments and handle amino acid sequences.
+//' 
+//' @param sequences A character vector of input sequences
+//' @param matrixName A substitution matrix for scoring alignments. 
+//'        Options include `"BLOSUM62"`, `"BLOSUM45"`, `"BLOSUM50"`, and `"BLOSUM80"`
+//' @param gapOpen A numeric value specifying the penalty for opening a gap in the alignment
+//' @param gapExt A numeric value specifying the penalty for extending an existing gap
+//' @return A numeric matrix of pairwise similarities
+//' @export
 // [[Rcpp::export]]
 NumericMatrix similarityNW(CharacterVector sequences,
                                         std::string matrixName = "BLOSUM62",
