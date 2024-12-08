@@ -11,11 +11,11 @@ louvain_mod(gin, res, res_range_perc = 0, res_step = 0, itr = 3)
 
 \item{res}{Louvain algorithm sensitivity.}
 
+\item{res_range_perc}{Percent of sensitivity for the function loop over for best modularity.}
+
 \item{res_step}{Number of even breaks over the sensitivity range.}
 
 \item{itr}{Number of iteration over each break point.}
-
-\item{res_range}{Percent of sensitivity for the function loop over for best modularity.}
 }
 \value{
 A clustered graph network optimized for modularity

@@ -6,6 +6,8 @@
 #' @param result A minhash_result object
 #' @return A list of similarity statistics
 #' @export
+#' 
+#' @importFrom stats median
 compute_similarity_stats <- function(result) {
   dist_matrix <- result$dist_matrix
   

@@ -16,7 +16,15 @@ Jaccard distance matrix
 Computes pairwise Jaccard distances between sequences using their MinHash signatures.
 }
 \examples{
-# Using previous example objects
+sequences <- c("ACDEGHHIKLLL", "ACDEGHHIKLMN")
+k <- 3
+n_hash <- 10
+# Create vocabulary and matrices
+vocab <- create_vocab(sequences, k)
+char_matrix <- create_char_matrix(sequences, vocab, k)
+max_val <- length(vocab)
+hash_params <- create_hash_parameters(n_hash, max_val)
 sig_matrix <- compute_signature_matrix(char_matrix, hash_params, max_val)
+# Compute distance matrix
 compute_distance_matrix(sig_matrix)
 }

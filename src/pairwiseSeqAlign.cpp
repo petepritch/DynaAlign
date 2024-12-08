@@ -1,5 +1,5 @@
-#ifndef MINHASH_HPP
-#define MINHASH_HPP
+#ifndef NW_HPP
+#define NW_HPP
 
 #include <Rcpp.h>
 #include <string>
@@ -313,7 +313,7 @@ double calculate_similarity(const string &sequence1, const string &sequence2,
 }
 
 // [[Rcpp::export]]
-NumericMatrix calculateSimilarityMatrix(CharacterVector sequences,
+NumericMatrix similarityNW(CharacterVector sequences,
                                         std::string matrixName = "BLOSUM62",
                                         int gapOpen = 10, int gapExt = 4) {
   size_t n = sequences.length();

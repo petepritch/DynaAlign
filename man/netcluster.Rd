@@ -22,6 +22,12 @@ netcluster(
 \item{igraph_weight}{Weight setting (TRUE/NULL) for igraph (default: TRUE)}
 
 \item{louvain_resolution}{Resolution setting for Louvain algorithm (default: 1.05)}
+
+\item{louvain_range_perc}{Resolution sensitivity range (default: 0)}
+
+\item{louvain_step}{Number of steps to break the sensitivity range (default: 0)}
+
+\item{louvain_itr}{Number of iterations to run for each resolution (default: 3)}
 }
 \value{
 A vector containing cluster assignment

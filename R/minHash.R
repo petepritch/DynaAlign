@@ -1,27 +1,4 @@
 # File: R/minHash.R
-#' @title MinHash Algorithm for Sequence Similarity
-#' @description 
-#' Implementation of the MinHash algorithm for computing similarities between sequences.
-#' This package provides tools for generating k-shingles, computing MinHash signatures,
-#' and calculating Jaccard distances between sequences.
-#'
-#' @details
-#' The main functions in this package are:
-#' \itemize{
-#'   \item \code{minhash_pipeline}: Main function for end-to-end analysis
-#'   \item \code{shingle}: Generate k-shingles from sequences
-#'   \item \code{compute_distance_matrix}: Calculate Jaccard distances
-#' }
-#'
-#' @docType _PACKAGE
-#' @name minhash-package
-NULL
-
-#' @import methods
-#' @importFrom stats median
-#' @importFrom utils head tail
-NULL
-
 #' Generate k-shingles from a string
 #'
 #' @param x A character string to be shingled
@@ -175,8 +152,16 @@ compute_signature_matrix <- function(char_matrix, hash_params, max_val) {
 #' @export
 #'
 #' @examples
-#' # Using previous example objects
+#' sequences <- c("ACDEGHHIKLLL", "ACDEGHHIKLMN")
+#' k <- 3
+#' n_hash <- 10
+#' # Create vocabulary and matrices
+#' vocab <- create_vocab(sequences, k)
+#' char_matrix <- create_char_matrix(sequences, vocab, k)
+#' max_val <- length(vocab)
+#' hash_params <- create_hash_parameters(n_hash, max_val)
 #' sig_matrix <- compute_signature_matrix(char_matrix, hash_params, max_val)
+#' # Compute distance matrix
 #' compute_distance_matrix(sig_matrix)
 compute_distance_matrix <- function(sig_matrix) {
   
@@ -215,7 +200,7 @@ compute_distance_matrix <- function(sig_matrix) {
 #'
 #' @examples
 #' sequences <- c("ACDEGHHIKLLL", "ACDEGHHIKLMN", "XXXXXYYYYYYZZ")
-#' result <- minhash_pipeline(sequences, k = 3, n_hash = 100)
+#' result <- minhash(sequences, k = 3, n_hash = 100)
 #' # View distance matrix
 #' print(result$dist_matrix)
 minhash <- function(sequences, k, n_hash) {

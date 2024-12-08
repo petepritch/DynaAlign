@@ -27,7 +27,7 @@ distance matrix.
 }
 \examples{
 sequences <- c("ACDEGHHIKLLL", "ACDEGHHIKLMN", "XXXXXYYYYYYZZ")
-result <- minhash_pipeline(sequences, k = 3, n_hash = 100)
+result <- minhash(sequences, k = 3, n_hash = 100)
 # View distance matrix
 print(result$dist_matrix)
 }

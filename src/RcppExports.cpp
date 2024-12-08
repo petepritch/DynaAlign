@@ -10,22 +10,22 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
-// minhash_similarity_matrix
-NumericMatrix minhash_similarity_matrix(CharacterVector sequences, int k, int num_hash);
-RcppExport SEXP _DynaAlign_minhash_similarity_matrix(SEXP sequencesSEXP, SEXP kSEXP, SEXP num_hashSEXP) {
+// similarityMH
+NumericMatrix similarityMH(CharacterVector sequences, int k, int n_hash);
+RcppExport SEXP _DynaAlign_similarityMH(SEXP sequencesSEXP, SEXP kSEXP, SEXP n_hashSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< CharacterVector >::type sequences(sequencesSEXP);
     Rcpp::traits::input_parameter< int >::type k(kSEXP);
-    Rcpp::traits::input_parameter< int >::type num_hash(num_hashSEXP);
-    rcpp_result_gen = Rcpp::wrap(minhash_similarity_matrix(sequences, k, num_hash));
+    Rcpp::traits::input_parameter< int >::type n_hash(n_hashSEXP);
+    rcpp_result_gen = Rcpp::wrap(similarityMH(sequences, k, n_hash));
     return rcpp_result_gen;
 END_RCPP
 }
-// calculateSimilarityMatrix
-NumericMatrix calculateSimilarityMatrix(CharacterVector sequences, std::string matrixName, int gapOpen, int gapExt);
-RcppExport SEXP _DynaAlign_calculateSimilarityMatrix(SEXP sequencesSEXP, SEXP matrixNameSEXP, SEXP gapOpenSEXP, SEXP gapExtSEXP) {
+// similarityNW
+NumericMatrix similarityNW(CharacterVector sequences, std::string matrixName, int gapOpen, int gapExt);
+RcppExport SEXP _DynaAlign_similarityNW(SEXP sequencesSEXP, SEXP matrixNameSEXP, SEXP gapOpenSEXP, SEXP gapExtSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -33,7 +33,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< std::string >::type matrixName(matrixNameSEXP);
     Rcpp::traits::input_parameter< int >::type gapOpen(gapOpenSEXP);
     Rcpp::traits::input_parameter< int >::type gapExt(gapExtSEXP);
-    rcpp_result_gen = Rcpp::wrap(calculateSimilarityMatrix(sequences, matrixName, gapOpen, gapExt));
+    rcpp_result_gen = Rcpp::wrap(similarityNW(sequences, matrixName, gapOpen, gapExt));
     return rcpp_result_gen;
 END_RCPP
 }

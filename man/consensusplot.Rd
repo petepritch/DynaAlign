@@ -4,19 +4,14 @@
 \alias{consensusplot}
 \title{Plot consensus sequences for each cluster in a clustered network}
 \usage{
-consensusplot(
-  df,
-  k_size = 2,
-  hash_size = 50,
-  threshold = 0.8,
-  sens = 1.05,
-  ...
-)
+consensusplot(df, k_size = 2, hash_size = 50, threshold = 0.8, sens = 1.05)
 }
 \arguments{
 \item{df}{Input clusterconsensus function output}
 
 \item{k_size}{minhash kmer size}
+
+\item{hash_size}{number of hash functions}
 
 \item{threshold}{binary threshold for adjacency matrix}
 

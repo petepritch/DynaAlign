@@ -10,8 +10,7 @@
 #' @return None (plots to current device)
 #' @export
 #'
-#' @importFrom stats hclust dist
-#' @importFrom graphics heatmap
+#' @importFrom stats hclust dist as.dendrogram heatmap
 plot.minhash_result <- function(x, cluster = TRUE, ...) {
   heatmap(x$dist_matrix,
           Rowv = if(cluster) as.dendrogram(hclust(dist(x$dist_matrix))) else NA,

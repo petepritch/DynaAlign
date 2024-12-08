@@ -4,9 +4,9 @@ test_that("shingle function works correctly", {
   expect_equal(shingle("ABCDEF", 3), c("ABC", "BCD", "CDE", "DEF"))
   
   # Test error handling
-  expect_error(shingle(123, 3), "x must be a single character string")
-  expect_error(shingle("ABCDEF", 0), "k must be a positive integer")
-  expect_error(shingle("ABCDEF", 7), "k must be a positive integer")
+  expect_error(shingle(123, 3), "Input 'x' must be a single character string")
+  expect_error(shingle("ABCDEF", 0), "'k' must be a positive integer between 1 and 6")
+  expect_error(shingle("ABCDEF", 7), "'k' must be a positive integer between 1 and 6")
   
   # Test edge cases
   expect_equal(shingle("AB", 2), "AB")
