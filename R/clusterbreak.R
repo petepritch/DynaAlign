@@ -188,15 +188,15 @@ clusterbreak <- function(pep,
 #' 
 #' @importFrom Biostrings AAStringSet
 #' @importFrom DECIPHER AlignSeqs ConsensusSequence
-clusterconsensus<-function(df){
-  cluster.id<-unique(df[,2])
-  out.df<-matrix(nrow=0,ncol=2)
-  for (i in 1:length(cluster.id)){
-    df.sub<-df[which(df[,2] == cluster.id[i]),1]
-    aa.set<-Biostrings::AAStringSet(df.sub)
-    aa.set.align<-DECIPHER::AlignSeqs(aa.set)
-    con.seq<-as.character(DECIPHER::ConsensusSequence(aa.set.align))
-    out.df<-rbind(out.df,c(cluster.id[i],con.seq))
+clusterconsensus <- function(df) {
+  cluster.id <- unique(df[,2])
+  out.df <- matrix(nrow=0,ncol=2)
+  for (i in 1:length(cluster.id)) {
+    df.sub <- df[which(df[,2] == cluster.id[i]),1]
+    aa.set <- Biostrings::AAStringSet(df.sub)
+    aa.set.align <- DECIPHER::AlignSeqs(aa.set)
+    con.seq <- as.character(DECIPHER::ConsensusSequence(aa.set.align))
+    out.df <- rbind(out.df, c(cluster.id[i], con.seq))
   }
   return(out.df)
 }

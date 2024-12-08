@@ -3,8 +3,15 @@
 
 #' @name similarityMH
 #' @title Compute MinHash Similarity Matrix
-NULL
-
+#' 
+#' @description
+#' This function computes a similarity matrix using the MinHash technique
+#' 
+#' @param sequences A character vector of input sequences
+#' @param k The length of k-mers to use (default: 4)
+#' @param n_hash Number of hash functions to use (default: 50)
+#' @return A numeric matrix of pairwise similarities
+#' @export
 similarityMH <- function(sequences, k = 4L, n_hash = 50L) {
     .Call(`_DynaAlign_similarityMH`, sequences, k, n_hash)
 }

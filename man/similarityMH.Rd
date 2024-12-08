@@ -3,6 +3,19 @@
 \name{similarityMH}
 \alias{similarityMH}
 \title{Compute MinHash Similarity Matrix}
+\usage{
+similarityMH(sequences, k = 4L, n_hash = 50L)
+}
+\arguments{
+\item{sequences}{A character vector of input sequences}
+
+\item{k}{The length of k-mers to use (default: 4)}
+
+\item{n_hash}{Number of hash functions to use (default: 50)}
+}
+\value{
+A numeric matrix of pairwise similarities
+}
 \description{
-Compute MinHash Similarity Matrix
+This function computes a similarity matrix using the MinHash technique
 }

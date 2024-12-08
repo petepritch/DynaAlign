@@ -106,17 +106,17 @@ vector<string> generate_kmers(const string& seq, int k) {
 
 //' @name similarityMH
 //' @title Compute MinHash Similarity Matrix
- //' 
- //' @description
- //' This function computes a similarity matrix using the MinHash technique
- //' 
- //' @param sequences A character vector of input sequences
- //' @param k The length of k-mers to use (default: 4)
- //' @param n_hash Number of hash functions to use (default: 50)
- //' @return A numeric matrix of pairwise similarities
- //' @export
- // [[Rcpp::export]]
- NumericMatrix similarityMH(CharacterVector sequences, int k = 4, int n_hash = 50) {
+//' 
+//' @description
+//' This function computes a similarity matrix using the MinHash technique
+//' 
+//' @param sequences A character vector of input sequences
+//' @param k The length of k-mers to use (default: 4)
+//' @param n_hash Number of hash functions to use (default: 50)
+//' @return A numeric matrix of pairwise similarities
+//' @export
+// [[Rcpp::export]]
+NumericMatrix similarityMH(CharacterVector sequences, int k = 4, int n_hash = 50) {
    // Comprehensive input validation
    if (sequences.length() == 0) {
      Rcpp::stop("Input sequences vector cannot be empty");
