@@ -16,9 +16,9 @@ seq=herpesvirus$PROBE_SEQUENCE
 set.seed(2024)
 
 #read in sample H3N2 sequences
-load("data/h3n2sample.rda")
-h3n2sample <- h3n2sample %>% dplyr::group_by(clade) %>% dplyr::sample_frac(.1)
-h3n2sample <- h3n2sample %>% dplyr::distinct(sequence,.keep_all=T)
+# load("data/h3n2sample.rda")
+testha <- h3n2sample %>% dplyr::group_by(clade) %>% dplyr::sample_frac(.008) %>% dplyr::ungroup()
+testha <- testha %>% dplyr::distinct(sequence,.keep_all=T)
 
 #load short sequence
 testdf <- herpesvirus
@@ -30,8 +30,13 @@ mh.matrix <- similarityMH(testdf$PROBE_SEQUENCE,k=2,n_hash=50) # rcpp min hash
 pa.matrix <- similarityNW(testdf$PROBE_SEQUENCE) # rcpp pairwise alignment
 rmh.matrix <- minhash(testdf$PROBE_SEQUENCE,k=1,n_hash=50)$dist_matrix# R min hash
 
-mh.matrix.ha <- similarityMH(h3n2sample$sequence,k=4,n_hash=500) # rcpp min hash
-pa.matrix.ha <- similarityNW(h3n2sample$sequence) # rcpp pairwise alignment
+mh.matrix.ha <- similarityMH(testha$sequence,k=3,n_hash=500) # rcpp min hash
+pa.matrix.ha <- similarityNW(testha$sequence,matrixName = "BLOSUM80") # rcpp pairwise alignment
+rmh.matrix.ha <- minhash(testha$sequence,k=3,n_hash=500)$dist_matrix# R min hash
+
+cor(rmh.matrix.ha[upper.tri(rmh.matrix.ha)], 
+                   pa.matrix.ha[upper.tri(pa.matrix.ha)],
+                   method = "pearson")
 
 # AI generated code for correlation testing 
   library(vegan)  # For Mantel test
