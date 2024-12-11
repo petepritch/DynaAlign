@@ -6,35 +6,46 @@
 \usage{
 clusterbreak(
   pep,
-  thresh = 0.8,
-  k_size = 2,
-  hash_size = 50,
+  thresh_p = 0.8,
   size_max = 10,
   size_min = 3,
-  sens = 1.05,
-  max_itr = 10000
+  max_itr = 10000,
+  sim_fn = function(x) similarityMH(x, k = 2, n_hash = 50),
+  cluster_fn = function(x, ...) igraph::cluster_louvain(x, resolution = 1.05,
+    ...)$membership,
+  cluster_wt = TRUE
 )
 }
 \arguments{
-\item{pep}{A vector of peptide sequences}
+\item{pep}{A vector of amino acid sequences}
 
-\item{thresh}{Threshold similarity score used to remove edge between two sequences if not similar enough}
-
-\item{k_size}{k-mer size for MinHash algorithm (default: k_size = 2)}
-
-\item{hash_size}{Hash function size for MinHash algorithm (default: hash_size = 50)}
+\item{thresh_p}{Quadrille of similarity score to set as threshold for adjacency}
 
 \item{size_max}{Maximum size of cluster desired (default: size_max = 10)}
 
 \item{size_min}{Minimum size of cluster desired (default: size_min = 3)}
 
-\item{sens}{Resolution setting for Louvain algorithm (default: sens = 1.05)}
-
 \item{max_itr}{Maximum function calls wanted before halting function execution (default: max_itr = 500)}
+
+\item{sim_fn}{Function for generating similarity matrix (default: similarityMH)}
+
+\item{cluster_fn}{Function for network-based clustering compatible with igraph object that must output a numeric vector of cluster assignment (default: cluster_louvain)}
+
+\item{cluster_wt}{Logical value for whether or not the cluster function takes in network weights in the function}
 }
 \value{
-A nx2 matrix with a column containing n peptide sequences and their corresponding cluster assignment
+List containing:
+\item{clustered_seq}{A nx2 matrix containging selected sequences with their cluster assignments}
+\item{filtered_seq}{Filtered sequences}
 }
 \description{
 Generate clusters with specified sizes using graph network and louvain method
+}
+\examples{
+library(DynaAlign)
+test <- h3n2sample \%>\% dplyr::group_by(clade) \%>\% dplyr::sample_frac(.4)
+test <- test \%>\% dplyr::distinct(sequence,.keep_all=T)
+
+#set parameters, similarity matrix function, and cluster function
+clusterbreak(h3n2sample$sequence,size_max = 800,thresh_p=.8,sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
 }

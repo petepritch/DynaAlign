@@ -7,9 +7,23 @@
 #' @param itr Number of iteration over each break point. 
 #' 
 #' @return A clustered graph network optimized for modularity
+#' @return List containing:
+#'   \item{cluster}{Final sequence cluster assignment}
+#'   \item{resolution}{Best Louvain algorithm resolution found}
+#'   \item{modularity}{Modularity using the best resolution}
 #' @export
 #' 
 #' @importFrom igraph graph_from_adjacency_matrix E cluster_louvain V layout_with_fr
+#' 
+#' @examples
+#' library(DynaAlign)
+#' sequences <- herpesvirus$PROBE_SEQUENCE[1:500]
+#' similarity_matrix <- similarityMH(sequences)
+#' threshold <- quantile(similarity_matrix,0.8)
+#' adjacency_matrix <- similarity_matrix
+#' adjacency_matrix[adjacency_matrix<threshold] <- 0
+#' network<-igraph::graph_from_adjacency_matrix(adjacency_matrix,mode="upper",weighted=TRUE) 
+#' louvain_mod(network,res=1.05)
 louvain_mod <- function(gin, res, res_range_perc = 0, res_step = 0, itr = 3) {
   
   res=seq(res - res_range_perc*res, res + res_range_perc*res, by = res_step)# set range of resolution parameters
@@ -44,56 +58,89 @@ louvain_mod <- function(gin, res, res_range_perc = 0, res_step = 0, itr = 3) {
 
 #' Generate cluster id using graph network and louvain method
 #' 
-#' @param pepmat A square or upper triangular similarity matrix
+#' @param pepmat A square or upper triangular adjacency matrix
 #' @param igraph_mode Mode settings for igraph (default: "upper")
 #' @param igraph_weight Weight setting (TRUE/NULL) for igraph (default: TRUE)
-#' @param louvain_resolution Resolution setting for Louvain algorithm (default: 1.05)
-#' @param louvain_range_perc Resolution sensitivity range (default: 0)
-#' @param louvain_step Number of steps to break the sensitivity range (default: 0)
-#' @param louvain_itr Number of iterations to run for each resolution (default: 3)
+#' @param cluster_func Any function to perform network-based cluster compatible with igraph networks that must return a numeric list of cluster assignment
 #' 
-#' @return A vector containing cluster assignment
+#' @return A vector containing cluster assignment.
 #' @export
 #' 
 #' @importFrom igraph graph_from_adjacency_matrix E cluster_louvain
+#' 
+#' @examples
+#' library(DynaAlign)
+#' sequences <- herpesvirus$PROBE_SEQUENCE[1:500]
+#' similarity_matrix <- similarityMH(sequences)
+#' threshold <- quantile(similarity_matrix,0.8)
+#' adjacency_matrix <- similarity_matrix
+#' adjacency_matrix[adjacency_matrix<threshold] <- 0
+#' 
+#' #default Louvain algorithms takes in network edge weights
+#' netcluster(pepmat = adjacency_matrix,cluster_weight = TRUE)
+#' 
+#' #use custom cluster function without using edge weights
+#' netcluster(pepmat = adjacency_matrix,cluster_weight=F,cluster_func=function(x,...) louvain_mod(gin=x,res=1.05,...)$cluster)
 netcluster<-function(pepmat,
                      igraph_mode = "upper",
                      igraph_weight = TRUE,
-                     louvain_resolution = 1.05,
-                     louvain_range_perc = 0,
-                     louvain_step = 0,
-                     louvain_itr = 3 ) {
+                     cluster_func = function(x,...) igraph::cluster_louvain(x,
+                                                                            resolution=1.05,...)$membership,
+                     cluster_weight = TRUE) {
   if(nrow(pepmat)!=ncol(pepmat)) {
     stop("Input must be a square pairwise similarity matrix")
   }
-  network<-igraph::graph_from_adjacency_matrix(pepmat,mode=igraph_mode,weighted=igraph_weight)
-  # cluster.n<-igraph::cluster_louvain(network,weights=igraph::E(network)$weight,resolution=louvain_resolution)
-  cluster.n<-louvain_mod(network,res=louvain_resolution,res_range_perc=louvain_range_perc,res_step=louvain_step,itr=louvain_itr)
-  return(cluster.n$cluster$membership)
+  
+  network<-igraph::graph_from_adjacency_matrix(pepmat,
+                                               mode=igraph_mode,
+                                               weighted=igraph_weight) #construct network
+  if (cluster_weight){
+    out <- cluster_func(network,weights=igraph::E(network)$weight) #include network weight in cluster function
+  }else{
+    out <- cluster_func(network)
+  }
+  
+  if (is.numeric(out) && is.vector(out)){
+    return(out)
+  }else{
+    stop("Wrong clustering output format. Output should be a numeric vector of cluster assignment.")
+  }
 }
 
 #' Generate clusters with specified sizes using graph network and louvain method
 #' 
-#' @param pep A vector of peptide sequences
-#' @param thresh Threshold similarity score used to remove edge between two sequences if not similar enough
-#' @param k_size k-mer size for MinHash algorithm (default: k_size = 2)
-#' @param hash_size Hash function size for MinHash algorithm (default: hash_size = 50)
+#' @param pep A vector of amino acid sequences
+#' @param thresh_p Quadrille of similarity score to set as threshold for adjacency 
 #' @param size_max Maximum size of cluster desired (default: size_max = 10)
 #' @param size_min Minimum size of cluster desired (default: size_min = 3)
-#' @param sens Resolution setting for Louvain algorithm (default: sens = 1.05)
 #' @param max_itr Maximum function calls wanted before halting function execution (default: max_itr = 500)
+#' @param sim_fn Function for generating similarity matrix (default: similarityMH)
+#' @param cluster_fn Function for network-based clustering compatible with igraph object that must output a numeric vector of cluster assignment (default: cluster_louvain)
+#' @param cluster_wt Logical value for whether or not the cluster function takes in network weights in the function
 #' 
-#' @return A nx2 matrix with a column containing n peptide sequences and their corresponding cluster assignment
+#' @return List containing:
+#'   \item{clustered_seq}{A nx2 matrix containging selected sequences with their cluster assignments}
+#'   \item{filtered_seq}{Filtered sequences}
 #' @export
 #' 
 #' @importFrom igraph graph_from_adjacency_matrix E cluster_louvain
+#' 
+#' @examples
+#' library(DynaAlign)
+#' test <- h3n2sample %>% dplyr::group_by(clade) %>% dplyr::sample_frac(.4)
+#' test <- test %>% dplyr::distinct(sequence,.keep_all=T)
+#' 
+#' #set parameters, similarity matrix function, and cluster function
+#' clusterbreak(h3n2sample$sequence,size_max = 800,thresh_p=.8,sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
 clusterbreak <- function(pep, 
-                         thresh = 0.8,
-                         k_size = 2, hash_size = 50, 
+                         thresh_p = 0.8,
                          size_max = 10, 
                          size_min = 3, 
-                         sens = 1.05, 
-                         max_itr = 10000) {
+                         max_itr = 10000,
+                         sim_fn=function(x) similarityMH(x,k=2,n_hash=50),
+                         cluster_fn=function(x,...) igraph::cluster_louvain(x,
+                                                                            resolution=1.05,...)$membership,
+                         cluster_wt=TRUE) {
   if (size_max <= size_min) {
     stop("size_max must be greater than size_min")
   }
@@ -105,8 +152,8 @@ clusterbreak <- function(pep,
   state <- new.env()
   state$out.df <- matrix(nrow = 0, ncol = 2)
   state$itr <- 1
-  state$clusters_processed <- 0
   state$convergence <- 1
+  state$filter.df <- NULL
   
   cluster_recursive <- function(pep) {
     
@@ -122,14 +169,18 @@ clusterbreak <- function(pep,
       return(state$out.df)
     }
     
-    pep.sim <- minhash(pep, k_size, hash_size)  #minhash similarity matrix
-    pep.sim <- pep.sim$dist_matrix
-    pep.sim[pep.sim<thresh] <- 0 # remove edges from nodes with similarity below threshold
-    c.index <- netcluster(pep.sim, louvain_resolution=sens) #cluster id
+    pep.sim <- sim_fn(pep)  #custom function for similarity matrix generation
+    
+    threshold <- quantile(pep.sim[upper.tri(pep.sim)],thresh_p) #quantile based threshold
+    
+    pep.sim[pep.sim<threshold] <- 0 # remove edges from nodes with similarity below threshold
+    c.index <- netcluster(pep.sim,cluster_func = cluster_fn,cluster_weight=cluster_wt) #cluster id
     pep.ref <- cbind(pep, c.index) # combine cluster id with sequences
     c.size <- tabulate(c.index) # count each cluster size
     id.itr <- which(c.size > size_max) # cluster id above max size
     id.rm <- which(c.size < size_min) # cluster id below min size
+    
+    state$filter.df <- c(state$filter.df,pep.ref[pep.ref[,2] %in% id.rm,1]) #store filtered sequences
     
     # stop or recursion conditions for output
     if (length(id.itr) == 0) {  
@@ -137,14 +188,13 @@ clusterbreak <- function(pep,
       if (nrow(out.pep) > 0) { #ensure non-empty output
         out.pep[,2] <- paste0(state$itr, ".", out.pep[,2]) #combine iteration and cluster to ensure uniqueness
         state$out.df <- rbind(state$out.df, out.pep) # combine output df
-        state$clusters_processed <- state$clusters_processed + nrow(out.pep) # sum number of clusters processed
       }
     } else {
       pep.out <- pep.ref[(!pep.ref[,2] %in% id.rm) & (!pep.ref[,2] %in% id.itr),] # recursion condition
       if (nrow(pep.out) > 0) {
         pep.out[,2] <- paste0(state$itr, ".", pep.out[,2])#combine iteration and cluster to ensure uniqueness
         state$out.df <- rbind(state$out.df, pep.out)# combine output df
-        state$clusters_processed <- state$clusters_processed + nrow(pep.out)# sum number of clusters processed
+        
       }
       
       # filter remaining clusters
@@ -159,7 +209,8 @@ clusterbreak <- function(pep,
       }
     }
     
-    return(state$out.df)
+    return(list(clustered_seq=state$out.df,
+                filtered_seq=state$filter.df))
   }
   
   # run recursive clustering
@@ -171,13 +222,13 @@ clusterbreak <- function(pep,
   }else{
     cat(sprintf("\nClustering incomplete, consider adjusting parameters:\n"))
   }
-  cat(sprintf("Total clusters processed: %d\n", state$clusters_processed))
-  cat(sprintf("Total function calls: %d\n", state$itr))
+  cat(sprintf("Total function calls (clusters broken): %d\n", state$itr))
   
   rm(state) # reset state global 
   
   return(result)
 }
+
 
 #' Generate consensus sequence
 #'
@@ -188,6 +239,13 @@ clusterbreak <- function(pep,
 #' 
 #' @importFrom Biostrings AAStringSet
 #' @importFrom DECIPHER AlignSeqs ConsensusSequence
+#' 
+#' @examples
+#' library(DynaAlign)
+#' test <- h3n2sample %>% dplyr::group_by(clade) %>% dplyr::sample_frac(.4)
+#' test <- test %>% dplyr::distinct(sequence,.keep_all=T)
+#' out.df <- clusterbreak(h3n2sample$sequence,size_max = 800,thresh_p=.8,sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
+#' clusterconsensus(out.df$clustered_seq)
 clusterconsensus <- function(df) {
   cluster.id <- unique(df[,2])
   out.df <- matrix(nrow=0,ncol=2)
@@ -213,14 +271,30 @@ clusterconsensus <- function(df) {
 #' @export
 #' 
 #' @importFrom igraph graph_from_adjacency_matrix E cluster_louvain V layout_with_fr
+#' 
+#' @examples
+#' library(DynaAlign)
+#' test <- h3n2sample %>% dplyr::group_by(clade) %>% dplyr::sample_frac(.4)
+#' test <- test %>% dplyr::distinct(sequence,.keep_all=T)
+#' out.df <- clusterbreak(h3n2sample$sequence,size_max = 800,thresh_p=.8,sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
+#' consensus_seq <- clusterconsensus(out.df$clustered_seq)
+#' 
+#' #default plot
+#' plot.consensus <- consensusplot(consensus_seq)
+#' plot.consensus
+#' 
+#' #can input igraph compatible plot parameter
+#' consensusplot(conc,vertex.size=0,edge.width=NA)
 consensusplot<-function(df,
                         k_size = 2, 
                         hash_size = 50,
-                        threshold = 0.8,
-                        sens = 1.05) {
+                        threshold_p = 0.8,
+                        sens = 1.05,
+                        ...) {
   #similarity matrix and adjacency matrix
   df.hash <- minhash(df[,2], k_size, hash_size)
   df.hash <- df.hash$dist_matrix
+  threshold <- quantile(df.hash[upper.tri(df.hash)],threshold_p)
   df.hash[df.hash<threshold] <- 0
   #plot call
   g <- igraph::graph_from_adjacency_matrix(df.hash, mode="upper", weighted=TRUE) # base plot
@@ -229,5 +303,6 @@ consensusplot<-function(df,
   
   g.layout <- igraph::layout_with_fr(g, weights = g.weight) #set layout for plot
   igraph::V(g)$name <- df[,1]#set node names to cluster name
-  g.out <- plot(g.cluster, g, layout = g.layout)
+  g.out <- plot(g.cluster, g, layout = g.layout,...)
+  return(g.out)
 }

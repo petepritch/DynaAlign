@@ -1,867 +1,309 @@
 ```{r library}
 library(igraph)
 library(devtools)
-
+rm(list=ls())
 ```
 
 ```{r functions}
 load_all()
+
 seq=herpesvirus$PROBE_SEQUENCE
 ```
 
 
-```{r quick}
-
-testfn=function(x,fn,...){
-  # return(fn(x,...))
-  if (identical(fn,minhash)){
-     return(fn(x,...))
-  }else{
-    return(0)
-  }
-}
-
-test=testfn(seq[1:1000],fn=minhash,k=2,n_hash=50)
-
-pfn=function(x,fn,...){
-  testfn=function(x,fn,...){
-  # return(fn(x,...))
-  if (identical(fn,minhash)){
-     return(fn(x,...))
-  }else{
-    return(0)
-  }
-  }
-  
-  return(testfn(x,fn,...))
-  
-}
-test=pfn(seq[1:1000],fn=minhash,k=2,n_hash=50)
-
-testfn(seq[1:1000],fn=minhash,k=2,n_hash=50)
-
-#similarity 
-similarityMH()#c
-similarityNW()#c
-minhash()#r
-```
 
 ```{r function revamp}
 set.seed(2024)
 
 #read in sample H3N2 sequences
 load("data/h3n2sample.rda")
-h3n2sample <- h3n2sample %>% dplyr::group_by(clade) %>% dplyr::sample_frac(.2)
-
+h3n2sample <- h3n2sample %>% dplyr::group_by(clade) %>% dplyr::sample_frac(.1)
+h3n2sample <- h3n2sample %>% dplyr::distinct(sequence,.keep_all=T)
 
 #load short sequence
-seq=herpesvirus$PROBE_SEQUENCE
-mh.matrix <- similarityMH(h3n2sample$sequence) # rcpp min hash
-pa.matrix <- similarityNW(h3n2sample$sequence) # rcpp pairwise alignment
-rmh.matrix <- minhash(h3n2sample$sequence) <- # R min hash
+testdf <- herpesvirus
+testdf$SEQ_VIRUS <- stringr::str_split_fixed(testdf$SEQ_INFO,"\\|",4)[,3]
+testdf <- testdf %>% dplyr::distinct(PROBE_SEQUENCE,.keep_all = T) %>% 
+  dplyr::group_by(SEQ_VIRUS) %>% dplyr::sample_frac(.02)
+
+mh.matrix <- similarityMH(testdf$PROBE_SEQUENCE,k=2,n_hash=50) # rcpp min hash
+pa.matrix <- similarityNW(testdf$PROBE_SEQUENCE) # rcpp pairwise alignment
+rmh.matrix <- minhash(testdf$PROBE_SEQUENCE,k=1,n_hash=50)$dist_matrix# R min hash
+
+mh.matrix.ha <- similarityMH(h3n2sample$sequence,k=4,n_hash=500) # rcpp min hash
+pa.matrix.ha <- similarityNW(h3n2sample$sequence) # rcpp pairwise alignment
+
+# AI generated code for correlation testing 
+  library(vegan)  # For Mantel test
+  library(ade4)   # Alternative correlation method
+  library(ggplot2)
+  # Mantel test (most common method)
+  mantel_result <- mantel(mh.matrix, pa.matrix)
+  mantel_result
   
+  cor(mh.matrix[upper.tri(mh.matrix)], 
+                   pa.matrix[upper.tri(pa.matrix)],
+                   method = "pearson")
+  
+  pearson_cor <- cor(mh.matrix[upper.tri(mh.matrix)], 
+                   pa.matrix[upper.tri(pa.matrix)],
+                   method = "pearson")
+  mantel_partial <- mantel.partial(mh.matrix, pa.matrix, rmh.matrix)
+  # Print Mantel test results
+  print(mantel_result)
+  
+  #plot
+  plot_data <- data.frame(
+                  dist1 = as.vector(mh.matrix[upper.tri(mh.matrix)]),
+                  dist2 = as.vector(pa.matrix[upper.tri(pa.matrix)]))
+  correlation_plot <- ggplot(plot_data, aes(x = dist1, y = dist2)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", color = "red") +
+  labs(
+    title = "Correlation Between Distance Matrices",
+    subtitle = paste("Mantel r =", round(mantel_result$statistic, 3), 
+                     "p =", round(mantel_result$signif, 3)),
+    x = "Distance Matrix 1",
+    y = "Distance Matrix 2"
+  ) +
+  theme_minimal()
+
+  
+  
+  
+#revamp functions
+#use mh.matrix
 
 
+netcluster<-function(pepmat,
+                     igraph_mode = "upper",
+                     igraph_weight = TRUE,
+                     cluster_func = function(x,...) igraph::cluster_louvain(x,
+                                                                resolution=1.05,...)$membership,
+                     cluster_weight = TRUE) {
+  if(nrow(pepmat)!=ncol(pepmat)) {
+    stop("Input must be a square pairwise similarity matrix")
+  }
+
+  network<-igraph::graph_from_adjacency_matrix(pepmat,
+                                               mode=igraph_mode,
+                                               weighted=igraph_weight) #construct network
+  if (cluster_weight){
+    out <- cluster_func(network,weights=igraph::E(network)$weight) #include network weight in cluster function
+  }else{
+    out <- cluster_func(network)
+  }
+  
+  if (is.numeric(out) && is.vector(out)){
+    return(out)
+  }else{
+    stop("Wrong clustering output format. Output should be a numeric vector of cluster assignment.")
+  }
+}
+
+# ltest=cluster_louvain(network,res=1)
+
+fn.test=netcluster(mh.matrix,cluster_weight=F,cluster_func=function(x,...) louvain_mod(gin=x,res=1.05,...)$cluster)
+
+test.check=function(fn1,fn2,...){
+  return(identical(fn1,fn2,...))
+}
+
+test.check(cluster_louvain,function(x) cluster_louvain(x,res=1.05),ignore.bytecode=T)
 ```
 
-```{r trial}
-
-```
 
 #relic code
 
-```{r minmash results}
-test=minhash(seq[1:1000],k=2,n_hash=50)$dist_matrix
+```{r revamp_clusterbreak}
+# clusterbreak <- function(pep, 
+#                          thresh = 0.8,
+#                          k_size = 2, hash_size = 50, 
+#                          size_max = 10, 
+#                          size_min = 3, 
+#                          sens = 1.05, 
+#                          max_itr = 10000) 
 
-dist.matrix=test$dist_matrix
+###### set debug param
 
-# firs function should create a network
-# second function should cluster the network
-
-netcluster<-function(pepmat,igraph_mode="upper",igraph_weight=TRUE,louvain_resolution=1.05){
-  if(nrow(pepmat)!=ncol(pepmat)) {
-    stop("Input must be a square pairwise similarity matrix")
-  }
-  network<-igraph::graph_from_adjacency_matrix(pepmat,mode=igraph_mode,weighted=igraph_weight)
-  cluster<-igraph::cluster_louvain(network,weights=igraph::E(network)$weight,resolution=louvain_resolution)
-  return(cluster$membership)
-}
-netcluster(dist.matrix)
-
-dist.matrix1=dist.matrix
-dist.matrix1[1:10,1:10]=-dist.matrix1[1:10,1:10]
-test.net=igraph::graph_from_adjacency_matrix(dist.matrix,mode="upper",weighted=TRUE)
-test.cluster=igraph::cluster_louvain(test.net,weights = igraph::E(test.net)$weight,resolution=2)
-
-plot(test.cluster,test.net)
-test.cluster$membership
-
-#function should take array of peptide in
-# then convert to similarity matrix
-# then cluster
-# then check cluster size
-# then iterate
-clusterbreak<-function(pep,k_size=2,hash_size=50,size_max=10,size_min=3,max_itr=10,sens=1.05,cnt){
-  # pep=seq[1:1000]
-  
-  if(size_max<=size_min){
+# thresh_p = 0.8
+#                         
+#                          size_max = 10 
+#                          size_min = 3
+#                          
+#                          max_itr = 10000
+#                          sim_fn=function(x) similarityMH(x,k=2,n_hash=50)
+#                          cluster_fn=function(x,...) igraph::cluster_louvain(x,
+#                                                                 resolution=1.05,...)$membership
+#                          cluster_wt=TRUE
+clusterbreak <- function(pep, 
+                         thresh_p = 0.8,
+                         # k_size = 2, hash_size = 50, 
+                         size_max = 10, 
+                         size_min = 3, 
+                         # sens = 1.05, 
+                         max_itr = 10000,
+                         sim_fn=function(x) similarityMH(x,k=2,n_hash=50),
+                         cluster_fn=function(x,...) igraph::cluster_louvain(x,
+                                                                resolution=1.05,...)$membership,
+                         cluster_wt=TRUE) {
+  if (size_max <= size_min) {
     stop("size_max must be greater than size_min")
   }
-  # cnt<<-cnt+1
-  if(cnt==1){
-    out.df<<-matrix(nrow = 0, ncol = 2)
-    itr<<-1
-  }else if(itr<=max_itr & cnt>1){
-    itr<<-itr+1
-  }else if(cnt>max_itr){
-    return(out.df)
-    stop("Maximum iteration reached without meeting required cluster size. Consider increasing size_max, max_itr, or sens")
-    
+  if (length(pep) == 0) {
+    stop("empty input sequence vector")
   }
-
-  pep.sim<-minhash(pep,k_size,hash_size) #minhash similarity matrix
-  c.index<-netcluster(pep.sim$dist_matrix,louvain_resolution=sens) #cluster id
-  pep.ref<-cbind(pep,c.index) #combine cluster id with sequences
   
+  # Create new state environment
+  state <- new.env()
+  state$out.df <- matrix(nrow = 0, ncol = 2)
+  state$itr <- 1
+  state$convergence <- 1
+  state$filter.df <- NULL
   
-  c.size<-tabulate(c.index) # count each cluster size
-  id.itr<-which(c.size>size_max) # cluster id above max size
-  id.rm<-which(c.size<size_max) # cluster id below min size
-  if(length(id.itr)==0){ # if all under maximum length
-    out.pep<-pep.ref[!pep.ref[,2] %in% id.rm,] # remove records in cluster with below min size
-    out.pep[,2]<-paste0(cnt,".",out.pep[,2]) # combine iteration number with cluster id
-    out.df<<-rbind(out.df,out.pep) # output for this level
+  cluster_recursive <- function(pep) {
+    
+    # Create helper function for logging adapted from Claude AI prompt
+    log_message <- function(msg, level="INFO") {
+      timestamp <- format(Sys.time(), "%H:%M:%S")
+      cat(sprintf("[%s] %s: %s\n", timestamp, level, msg))
+    }
+    
+    if (state$itr > max_itr) {
+      log_message("Maximum function calls reached", "WARNING")
+      state$convergence<-0 # change status to not converged since max itr reached
+      return(state$out.df)
+    }
+    
+    pep.sim <- sim_fn(pep)  #custom function for similarity matrix generation
+    
+    threshold <- quantile(pep.sim[upper.tri(pep.sim)],thresh_p) #quantile based threshold
+    
+    pep.sim[pep.sim<threshold] <- 0 # remove edges from nodes with similarity below threshold
+    c.index <- netcluster(pep.sim,cluster_func = cluster_fn,cluster_weight=cluster_wt) #cluster id
+    pep.ref <- cbind(pep, c.index) # combine cluster id with sequences
+    c.size <- tabulate(c.index) # count each cluster size
+    id.itr <- which(c.size > size_max) # cluster id above max size
+    id.rm <- which(c.size < size_min) # cluster id below min size
+    
+    state$filter.df <- c(state$filter.df,pep.ref[pep.ref[,2] %in% id.rm,1]) #store filtered sequences
+    
+    # stop or recursion conditions for output
+    if (length(id.itr) == 0) {  
+      out.pep <- pep.ref[!pep.ref[,2] %in% id.rm,] # filter out those under minimum length
+      if (nrow(out.pep) > 0) { #ensure non-empty output
+        out.pep[,2] <- paste0(state$itr, ".", out.pep[,2]) #combine iteration and cluster to ensure uniqueness
+        state$out.df <- rbind(state$out.df, out.pep) # combine output df
+      }
+    } else {
+      pep.out <- pep.ref[(!pep.ref[,2] %in% id.rm) & (!pep.ref[,2] %in% id.itr),] # recursion condition
+      if (nrow(pep.out) > 0) {
+        pep.out[,2] <- paste0(state$itr, ".", pep.out[,2])#combine iteration and cluster to ensure uniqueness
+        state$out.df <- rbind(state$out.df, pep.out)# combine output df
+        
+      }
+      
+      # filter remaining clusters
+      pep.new <- pep.ref[pep.ref[,2] %in% id.itr,]#clusters with size > max
+      loop.lvl <- unique(pep.new[,2])#set levels for loop
+      
+      # loop for remaining qualified clusters
+      for (i in seq_along(loop.lvl)) {
+        sub.df <- pep.new[pep.new[,2] == loop.lvl[i], 1] #filter ith cluster
+        state$itr <- state$itr + 1 #increment for iteration/function call
+        cluster_recursive(sub.df) #recursive call
+      }
+    }
+    
+    return(list(clustered_seq=state$out.df,
+                filtered_seq=state$filter.df))
+  }
+  
+  # run recursive clustering
+  result <- cluster_recursive(pep)
+  
+  # Final status report adapted from claude AI output
+  if (state$convergence==1){
+    cat(sprintf("\nClustering complete:\n"))
   }else{
-    #filter clusters with wanted size
-    pep.out=pep.ref[(!pep.ref[,2] %in% id.rm)&(!pep.ref[,2] %in% id.itr),] #filter
-    if (nrow(pep.out)>0){# check if wanted size cluster exist
-      pep.out[,2]<-paste0(cnt,".",pep.out[,2]) # if there are, output
-      out.df<<-rbind(out.df,pep.out)
-    }
-    
-    #further break down others
-    pep.new=pep.ref[pep.ref[,2] %in% id.itr,] # filter clusters needed to be broken down
-    loop.lvl=unique(pep.new[,2]) #check how many clusters remain
-    
-    #loop
-    for (i in 1:length(loop.lvl)){
-      print(paste0("iteration ",itr," cnt ",cnt," cluster " ,i))
-      sub.df<-pep.new[pep.new[,2]==loop.lvl[i],1]
-      clusterbreak(pep,k_size,hash_size,size_max,size_min,max_itr,cnt=cnt+1)
-    }
-    return(out.df)
+    cat(sprintf("\nClustering incomplete, consider adjusting parameters:\n"))
   }
+  cat(sprintf("Total function calls (clusters broken): %d\n", state$itr))
+  
+  rm(state) # reset state global 
+  
+  return(result)
 }
 
+test.cluster=clusterbreak(testdf$PROBE_SEQUENCE,thresh_p=.95)
+# table(test.cluster[])
 
+# test.cluster$clustered_seq
+
+conc=clusterconsensus(test.cluster$clustered_seq)
+
+consensusplot<-function(df,
+                        k_size = 2, 
+                        hash_size = 50,
+                        threshold_p = 0.8,
+                        sens = 1.05,...) {
+  #similarity matrix and adjacency matrix
+  df.hash <- minhash(df[,2], k_size, hash_size)
+  df.hash <- df.hash$dist_matrix
+  threshold <- quantile(df.hash[upper.tri(df.hash)],threshold_p)
+  df.hash[df.hash<threshold] <- 0
+  #plot call
+  g <- igraph::graph_from_adjacency_matrix(df.hash, mode="upper", weighted=TRUE) # base plot
+  g.weight <- igraph::E(g)$weight # edge weight
+  g.cluster <- igraph::cluster_louvain(g,weights = g.weight, resolution = sens) # cluster using weights
+  
+  g.layout <- igraph::layout_with_fr(g, weights = g.weight) #set layout for plot
+  igraph::V(g)$name <- df[,1]#set node names to cluster name
+  g.out <- plot(g.cluster, g, layout = g.layout,...)
+  return(g.out)
+}
+
+consensusplot(conc, vertex.size=0,edge.width=NA)
+
+
+test.cluster$clustered_seq
+
+
+test.cluster=clusterbreak(h3n2sample$sequence,size_max = 800,thresh_p=.8,sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
 ```
+
+```{r testing_purposes}
+#create confusion matrix
+confusionmatrix <- test.cluster$clustered_seq
+# testdf.conf <- testdf %>% dplyr::select(PROBE_SEQUENCE,SEQ_VIRUS)#shorter sequence
+testdf.conf <- h3n2sample %>% dplyr::select(sequence,clade)
+colnames(testdf.conf)[1]="pep"
+confusionmatrix <- dplyr::left_join(as.data.frame(confusionmatrix),testdf.conf,by="pep")
+
+library(mclust)
+
+adjustedRandIndex(confusionmatrix$clade, confusionmatrix$c.index)
+
+library(vegan)
+
+mutinformation(confusionmatrix$clade, confusionmatrix$c.index) / 
+       sqrt(entropy(confusionmatrix$clade) * entropy(confusionmatrix$c.index))
+
+library(ggplot2)
+ggplot(confusionmatrix, aes(x = pep, y = c.index, color = clade)) +
+  geom_point(size = 3) +
+  labs(title = "Clusters vs True Classes")
+```
+
 
 ```{r}
-clusterbreak <- function(pep, k_size=2, hash_size=50, size_max=20, size_min=3, 
-                        max_itr=10, sens=1.05, max_calls=100) {
-  
-  # Create environment to store state
-  if (!exists("state")) {
-    state <- new.env()
-    state$out.df <- matrix(nrow = 0, ncol = 2)
-    state$itr <- 1
-    state$call_count <- 0
-    state$clusters_processed <- 0
-  }
-  
-  # Increment call counter
-  state$call_count <- state$call_count + 1
-  
-  # Create helper function for logging
-  log_message <- function(msg, level="INFO") {
-    timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-    cat(sprintf("[%s] %s: %s\n", timestamp, level, msg))
-  }
-  
-  # Validation checks
-  if (size_max <= size_min) {
-    stop("size_max must be greater than size_min")
-  }
-  
-  # Check termination conditions
-  if (state$call_count > max_calls) {
-    log_message("Maximum number of function calls reached", "WARNING")
-    return(state$out.df)
-  }
-  
-  if (state$itr > max_itr) {
-    log_message("Maximum iterations reached", "WARNING")
-    return(state$out.df)
-  }
-  
-  # Check for empty or invalid input
-  if (length(pep) == 0) {
-    log_message("Empty input sequence", "WARNING")
-    return(state$out.df)
-  }
-  
-  # Log current state
-  log_message(sprintf("Starting iteration %d (call %d)", state$itr, state$call_count))
-  
-  # Compute similarities
-  tryCatch({
-    pep.sim <- minhash(pep, k_size, hash_size)
-    c.index <- netcluster(pep.sim$dist_matrix, louvain_resolution=sens)
-  }, error = function(e) {
-    log_message(sprintf("Error in clustering: %s", e$message), "ERROR")
-    return(state$out.df)
-  })
-  
-  # Combine results
-  pep.ref <- cbind(pep, c.index)
-  c.size <- tabulate(c.index)
-  
-  # Identify clusters to process
-  id.itr <- which(c.size > size_max)
-  id.rm <- which(c.size < size_min)
-  
-  # Process results
-  if (length(id.itr) == 0) {
-    # All clusters under maximum size
-    out.pep <- pep.ref[!pep.ref[,2] %in% id.rm,]
-    if (nrow(out.pep) > 0) {
-      out.pep[,2] <- paste0(state$itr, ".", out.pep[,2])
-      state$out.df <- rbind(state$out.df, out.pep)
-      state$clusters_processed <- state$clusters_processed + nrow(out.pep)
-    }
-  } else {
-    # Process clusters of acceptable size
-    pep.out <- pep.ref[(!pep.ref[,2] %in% id.rm) & (!pep.ref[,2] %in% id.itr),]
-    if (nrow(pep.out) > 0) {
-      pep.out[,2] <- paste0(state$itr, ".", pep.out[,2])
-      state$out.df <- rbind(state$out.df, pep.out)
-      state$clusters_processed <- state$clusters_processed + nrow(pep.out)
-    }
-    
-    # Process remaining clusters that need further breaking down
-    pep.new <- pep.ref[pep.ref[,2] %in% id.itr,]
-    loop.lvl <- unique(pep.new[,2])
-    
-    # Recursive processing of remaining clusters
-    for (i in seq_along(loop.lvl)) {
-      if (state$call_count >= max_calls) {
-        log_message("Maximum calls reached during loop", "WARNING")
-        break
-      }
-      
-      log_message(sprintf("Processing sub-cluster %d/%d in iteration %d", 
-                         i, length(loop.lvl), state$itr))
-      
-      sub.df <- pep.new[pep.new[,2] == loop.lvl[i], 1]
-      state$itr <- state$itr + 1
-      
-      # Recursive call
-      clusterbreak(sub.df, k_size, hash_size, size_max, size_min, 
-                  max_itr, sens, max_calls)
-    }
-  }
-  
-  # Final status report
-  if (state$call_count == 1) {
-    log_message(sprintf("Processing complete. Total clusters: %d, Calls: %d", 
-                       state$clusters_processed, state$call_count))
-  }
-  
-  return(state$out.df)
-}
 
-result=clusterbreak(seq[1:500])
-```
-```{r v3}
-clusterbreak <- function(pep, k_size=2, hash_size=50, size_max=10, size_min=3, 
-                        max_itr=10, sens=1.05, max_calls=100) {
-  
-  cluster_recursive <- function(pep) {
-    # Increment call counter
-    state$call_count <- state$call_count + 1
-    
-    # Create helper function for logging
-    # generated from Claude AI prompt
-    log_message <- function(msg, level="INFO") {
-      timestamp <- format(Sys.time(), "%H:%M:%S")
-      cat(sprintf("[%s] %s: %s\n", timestamp, level, msg))
-    }
-    
-    # Check termination conditions
-    if (state$call_count > max_calls) {
-      log_message("Maximum number of function calls reached", "WARNING")
-      return(state$out.df)
-    }
-    
-    if (state$itr > max_itr) {
-      log_message("Maximum iterations reached", "WARNING")
-      return(state$out.df)
-      break
-    }
-    
-    # Check for empty or invalid input
-    if (length(pep) == 0) {
-      log_message("Empty input sequence", "WARNING")
-      return(state$out.df)
-    }
-    
-    # Log current state
-    log_message(sprintf("Starting iteration %d (call %d)", state$itr, state$call_count))
-    
-    # Compute similarities
-    tryCatch({
-      pep.sim <- minhash(pep, k_size, hash_size)
-      c.index <- netcluster(pep.sim$dist_matrix, louvain_resolution=sens)
-    }, error = function(e) {
-      log_message(sprintf("Error in clustering: %s", e$message), "ERROR")
-      return(state$out.df)
-    })
-    
-    # Combine results
-    pep.ref <- cbind(pep, c.index)
-    c.size <- tabulate(c.index)
-    
-    # Identify clusters to process
-    id.itr <- which(c.size > size_max)
-    id.rm <- which(c.size < size_min)
-    
-    # Process results
-    if (length(id.itr) == 0) {
-      # All clusters under maximum size
-      out.pep <- pep.ref[!pep.ref[,2] %in% id.rm,]
-      if (nrow(out.pep) > 0) {
-        out.pep[,2] <- paste0(state$itr, ".", out.pep[,2])
-        state$out.df <- rbind(state$out.df, out.pep)
-        state$clusters_processed <- state$clusters_processed + nrow(out.pep)
-      }
-    } else {
-      # Process clusters of acceptable size
-      pep.out <- pep.ref[(!pep.ref[,2] %in% id.rm) & (!pep.ref[,2] %in% id.itr),]
-      if (nrow(pep.out) > 0) {
-        pep.out[,2] <- paste0(state$itr, ".", pep.out[,2])
-        state$out.df <- rbind(state$out.df, pep.out)
-        state$clusters_processed <- state$clusters_processed + nrow(pep.out)
-      }
-      
-      # Process remaining clusters that need further breaking down
-      pep.new <- pep.ref[pep.ref[,2] %in% id.itr,]
-      loop.lvl <- unique(pep.new[,2])
-      
-      # Recursive processing of remaining clusters
-      for (i in seq_along(loop.lvl)) {
-        if (state$call_count >= max_calls) {
-          log_message("Maximum calls reached during loop", "WARNING")
-          break
-        }
-        
-        log_message(sprintf("Processing sub-cluster %d/%d in iteration %d", 
-                           i, length(loop.lvl), state$itr))
-        
-        sub.df <- pep.new[pep.new[,2] == loop.lvl[i], 1]
-        state$itr <- state$itr + 1
-        
-        # Recursive call
-        cluster_recursive(sub.df)
-      }
-    }
-    
-    return(state$out.df)
-  }
-  
-  # Validation checks
-  if (size_max <= size_min) {
-    stop("size_max must be greater than size_min")
-  }
-  
-  # Create new state environment for this run
-  state <- new.env()
-  state$out.df <- matrix(nrow = 0, ncol = 2)
-  state$itr <- 1
-  state$call_count <- 0
-  state$clusters_processed <- 0
-  
-  # Run clustering
-  result <- cluster_recursive(pep)
-  
-  # Final status report
-  cat(sprintf("\nClustering complete:\n"))
-  cat(sprintf("Total clusters processed: %d\n", state$clusters_processed))
-  cat(sprintf("Total function calls: %d\n", state$call_count))
-  cat(sprintf("Final iteration: %d\n", state$itr))
-  
-  # Clean up state
-  rm(state)
-  
-  return(result)
-}
-
-clusterbreak(pep=seq[1:1000])
-```
-
-```{r v4}
-clusterbreak <- function(pep, k_size=2, hash_size=50, size_max=10, size_min=3, 
-                        sens=1.05, max_itr=500) {
-  if (size_max <= size_min) {
-    stop("size_max must be greater than size_min")
-  }
-  if (length(pep) == 0) {
-    stop("empty input sequence vector")
-  }
-  
-  cluster_recursive <- function(pep) {
-    # Increment call counter
-    # state$call_count <- state$call_count + 1
-    
-    # Create helper function for logging
-    # adapted from Claude AI prompt
-    log_message <- function(msg, level="INFO") {
-      timestamp <- format(Sys.time(), "%H:%M:%S")
-      cat(sprintf("[%s] %s: %s\n", timestamp, level, msg))
-    }
-    
-    if (state$itr > max_itr) {
-      log_message("Maximum function calls reached", "WARNING")
-      state$convergence<-0 # change status to not converged since max itr reached
-      return(state$out.df)
-      break
-    }
-    
-    pep.sim <- minhash(pep, k_size, hash_size)  #minhash similarity matrix
-    c.index <- netcluster(pep.sim$dist_matrix, louvain_resolution=sens) #cluster id
-    pep.ref <- cbind(pep, c.index) # combine cluster id with sequences
-    c.size <- tabulate(c.index) # count each cluster size
-    id.itr <- which(c.size > size_max) # cluster id above max size
-    id.rm <- which(c.size < size_min) # cluster id below min size
-    
-   # stop or recursion conditions for output
-    if (length(id.itr) == 0) {  
-      out.pep <- pep.ref[!pep.ref[,2] %in% id.rm,] # filter out those under minimum length
-      if (nrow(out.pep) > 0) { #ensure non-empty output
-        out.pep[,2] <- paste0(state$itr, ".", out.pep[,2]) #combine iteration and cluster to ensure uniqueness
-        state$out.df <- rbind(state$out.df, out.pep) # combine output df
-        state$clusters_processed <- state$clusters_processed + nrow(out.pep) # sum number of clusters processed
-      }
-    } else {
-      pep.out <- pep.ref[(!pep.ref[,2] %in% id.rm) & (!pep.ref[,2] %in% id.itr),] # recursion condition
-      if (nrow(pep.out) > 0) {
-        pep.out[,2] <- paste0(state$itr, ".", pep.out[,2])#combine iteration and cluster to ensure uniqueness
-        state$out.df <- rbind(state$out.df, pep.out)# combine output df
-        state$clusters_processed <- state$clusters_processed + nrow(pep.out)# sum number of clusters processed
-      }
-
-      # filter remaining clusters
-      pep.new <- pep.ref[pep.ref[,2] %in% id.itr,]#clusters with size > max
-      loop.lvl <- unique(pep.new[,2])#set levels for loop
-
-      # loop for remaining qualified clusters
-      for (i in seq_along(loop.lvl)) {
-        sub.df <- pep.new[pep.new[,2] == loop.lvl[i], 1]
-        state$itr <- state$itr + 1
-        cluster_recursive(sub.df)
-      }
-    }
-    
-  # if(length(id.itr)==0){ # if all under maximum length
-  #   out.pep<-pep.ref[!pep.ref[,2] %in% id.rm,] # remove records in cluster with below min size
-  #   out.pep[,2]<-paste0(cnt,".",out.pep[,2]) # combine iteration number with cluster id
-  #   # out.df<<-rbind(out.df,out.pep) # output for this level
-  #   state$out.df <- rbind(state$out.df, out.pep)
-  #   state$clusters_processed <- state$clusters_processed + length(unique(out.pep[,2])) # sum number processed
-  # }else{
-  #   #filter clusters with wanted size
-  #   pep.out=pep.ref[(!pep.ref[,2] %in% id.rm)&(!pep.ref[,2] %in% id.itr),] #filter
-  #   if (nrow(pep.out)>0){# check if wanted size cluster exist
-  #     pep.out[,2]<-paste0(cnt,".",pep.out[,2]) # if there are, output
-  #     # out.df<<-rbind(out.df,pep.out)
-  #     state$out.df <- rbind(state$out.df, pep.out)
-  #     state$clusters_processed <- state$clusters_processed + length(unique(pep.out[,2]))
-  #   }
-  #   
-  #   #further break down others
-  #   pep.new=pep.ref[pep.ref[,2] %in% id.itr,] # filter clusters needed to be broken down
-  #   loop.lvl=unique(pep.new[,2]) #check how many clusters remain
-  #   
-  #   #loop
-  #     for (i in seq_along(loop.lvl)) {
-  #       sub.df <- pep.new[pep.new[,2] == loop.lvl[i], 1]
-  #       state$itr <- state$itr + 1
-  #       cluster_recursive(sub.df)
-  #     }
-  # }
-    
-    return(state$out.df)
-  }
-  
-
-
-  
-  # Create new state environment
-  state <- new.env()
-  state$out.df <- matrix(nrow = 0, ncol = 2)
-  state$itr <- 1
-  # state$call_count <- 0
-  state$clusters_processed <- 0
-  state$convergence <- 1
-  
-  # run recursive clustering
-  result <- cluster_recursive(pep)
-  
-  # Final status report adapted from claude AI output
-  if (state$convergence==1){
-    cat(sprintf("\nClustering complete:\n"))
-  }else{
-    cat(sprintf("\nClustering incomplete, consider adjust parameters:\n"))
-  }
-  cat(sprintf("Total clusters processed: %d\n", state$clusters_processed))
-  cat(sprintf("Total function calls: %d\n", state$itr))
-
-  
-  # Clean up state
-  rm(state)
-  
-  return(result)
-}
-
-test=clusterbreak(pep=seq[1:100])
-table(test[,2])
-
-t.hash=minhash(test[,1],2,50)
-
-  t.network<-igraph::graph_from_adjacency_matrix(t.hash$dist_matrix,mode="upper",weighted=TRUE)
-  t.cluster<-igraph::cluster_louvain(t.network,weights=igraph::E(t.network),resolution=1.05)
-  plot(t.cluster,t.network)
-```
-```{r consensus}
-#' Generate consensus sequence
-#'
-#' @param df Input clusterbreak output df
-#' @return df with first column being unique cluster id and second column being the corresponding consensus sequence
-#' @importFrom Biostrings AAStringSet
-#' @importFrom DECIPHER AlignSeqs ConsensusSequence
-#' @export
-clusterconsensus<-function(df){
-  cluster.id<-unique(df[,2])
-  out.df<-matrix(nrow=0,ncol=2)
-  for (i in 1:length(cluster.id)){
-    df.sub<-df[which(df[,2] == cluster.id[i]),1]
-    aa.set<-Biostrings::AAStringSet(df.sub)
-    aa.set.align<-DECIPHER::AlignSeqs(aa.set)
-    con.seq<-as.character(DECIPHER::ConsensusSequence(aa.set.align))
-    out.df<-rbind(out.df,c(cluster.id[i],con.seq))
-  }
-  return(out.df)
-}
-
-
-test=clusterbreak(pep=seq[1:100])
-
-test.consensus=clusterconsensus(test)
-# df=test
-test.consensus.hash=minhash(test.consensus[,2],2,50)
-test.consensus.hash.mat=test.consensus.hash$dist_matrix
-test.consensus.hash.mat[test.consensus.hash.mat<.8]=0
-test.consensus.g=igraph::graph_from_adjacency_matrix(test.consensus.hash.mat,mode="upper",weighted=TRUE)
-plot(test.consensus.g)
-igraph::E(test.consensus.g)$weight
-
-test.consensus.g.c<-igraph::cluster_louvain(test.consensus.g,weights=igraph::E(test.consensus.g)$weight,resolution=1.08)
-test.consensus.g.c
-# test.consensus.g.c<-igraph::cluster_louvain(test.consensus.g,resolution=1.08)
-# test.consensus.g.c
-  plot(test.consensus.g.c,test.consensus.g)
-  plot(test.consensus.g, vertex.color = igraph::membership(test.consensus.g.c))
-
-  layout <- igraph::layout_with_fr(test.consensus.g, weights = igraph::E(test.consensus.g)$weight)
-
-# plot(test.consensus.g, layout = layout, vertex.size = 15) 
-  plot(test.consensus.g.c,test.consensus.g,layout = layout, vertex.size = 15)
-  igraph::V(test.consensus.g)$name <- test.consensus[,1]
-# igraph::V(test.consensus.g)$degree
-# try function writing 
-  
-#' Plot consensus sequences for each cluster in a clustered network
-#'
-#' @param df Input clusterconsensus function output
-#' @param k_size minhash kmer size
-#' @param threshold binary threshold for adjacency matrix
-#' @param sens Louvain algorithm sensitivity
-#' @return hash_size hash function size
-#' @importFrom igraph graph_from_adjacency_matrix E cluster_louvain V layout_with_fr
-#' @export
-consensusplot<-function(df,k_size=2, hash_size=50,threshold=0.8,sens=1.05,...){
-  #similarity matrix and adjacency matrix
-  df.hash<-minhash(df[,2],k_size,hash_size)
-  df.hash<-df.hash$dist_matrix
-  df.hash[df.hash<threshold]<-0
-  #plot call
-  g<-igraph::graph_from_adjacency_matrix(df.hash,mode="upper",weighted=TRUE) # base plot
-  g.weight<-igraph::E(g)$weight # edge weight
-  g.cluster<-igraph::cluster_louvain(g,weights=g.weight,resolution=sens) # cluster using weights
-  
-  g.layout<-igraph::layout_with_fr(g, weights = g.weight) #set layout for plot
-  igraph::V(g)$name <- df[,1]#set node names to cluster name
-  g.out<-plot(g.cluster,g,layout = g.layout, ...)
-}
-  df=test.consensus
-  consensusplot(df)
-
-#' Modified Louvain Clustering function
-#'
-#' @param gin Input network.
-#' @param res Louvain algorithm sensitivity.
-#' @param res_range Percent of sensitivity for the function loop over for best modularity.
-#' @param res_step Number of even breaks over the sensitivity range.
-#' @param itr Number of iteration over each break point. 
-#' @return A clustered graph network optimized for modularity
-#' @importFrom igraph graph_from_adjacency_matrix E cluster_louvain V layout_with_fr
-#' @export
-louvain_mod<-function(gin,res,res_range_perc=0,res_step=0,itr=3){
-
-  res=seq(res - res_range_perc*res, res + res_range_perc*res, by = res_step)# set range of resolution parameters
-  
-  best_modularity <- NULL
-  best_clusters <- NULL
-  best_resolution<-NULL
-  for (j in seq_along(res)){
-    if (j==1){
-      best_resolution<-res[j]
-    }
-  for (i in 1:itr) {#iteration loop
-    gin.cluster<-igraph::cluster_louvain(gin,weights=igraph::E(gin)$weight,resolution=res[j]) # cluster using weights
-    gin.mod<-  igraph::modularity(gin.cluster)#obtain modularity
-    
-    if(i==1){#initial loop
-      best_modularity <- gin.mod
-      best_clusters <- gin.cluster
-    }
-    if (i>1 & gin.mod > best_modularity) {#replace initial values if higher modularity
-      best_modularity <- gin.mod
-      best_clusters <- gin.cluster
-      best_resolution<-res[j]
-    }
-  }
-  }
- 
-  return(list(cluster=best_clusters,
-                 resolution=best_resolution,
-                 modularity=best_modularity))
-}
-seq(1,1,by=0)
-test1=louvain_mod(test.net,res=1.05)
-test1$cluster$membership
-gin=test.net
-
-
-netcluster<-function(pepmat,igraph_mode="upper",igraph_weight=TRUE,louvain_resolution=1.05,louvain_range_perc=0,louvain_step=0,louvain_itr=3){
-  if(nrow(pepmat)!=ncol(pepmat)) {
-    stop("Input must be a square pairwise similarity matrix")
-  }
-  network<-igraph::graph_from_adjacency_matrix(pepmat,mode=igraph_mode,weighted=igraph_weight)
-  # cluster.n<-igraph::cluster_louvain(network,weights=igraph::E(network)$weight,resolution=louvain_resolution)
-  cluster.n<-louvain_mod(network,res=louvain_resolution,res_range_perc=louvain_range_perc,res_step=louvain_step,itr=louvain_itr)
-  return(cluster.n$cluster$membership)
-}
-
-# netcluster<-function(pepmat,igraph_mode="upper",igraph_weight=TRUE,louvain_resolution=1.05){
-#   if(nrow(pepmat)!=ncol(pepmat)) {
-#     stop("Input must be a square pairwise similarity matrix")
-#   }
-#   network<-igraph::graph_from_adjacency_matrix(pepmat,mode=igraph_mode,weighted=igraph_weight)
-#   cluster<-igraph::cluster_louvain(network,weights=igraph::E(network)$weight,resolution=louvain_resolution)
-#   return(cluster$membership)
-# }
-
-netcluster(dist.matrix)
-
-clusterbreak()
-```
-
-```{r function_documentation}
-#' seqnetcluster
-#'
-#' @param x A vector of values.
-#' @param n Number to multiply by.
-#' @return A clustered graph network 
-#' @importFrom igraph graph_from_adjacency_matrix E cluster_louvain
-#' @export
-
-```
-
-```{r v5}
-clusterbreak <- function(pep, thresh=0.8,k_size=2, hash_size=50, size_max=10, size_min=3, sens=1.05, max_itr=500) {
-  if (size_max <= size_min) {
-    stop("size_max must be greater than size_min")
-  }
-  if (length(pep) == 0) {
-    stop("empty input sequence vector")
-  }
-  
-  # Create new state environment
-  state <- new.env()
-  state$out.df <- matrix(nrow = 0, ncol = 2)
-  state$itr <- 1
-  state$clusters_processed <- 0
-  state$convergence <- 1
-  
-  cluster_recursive <- function(pep) {
-    
-    # Create helper function for logging adapted from Claude AI prompt
-    log_message <- function(msg, level="INFO") {
-      timestamp <- format(Sys.time(), "%H:%M:%S")
-      cat(sprintf("[%s] %s: %s\n", timestamp, level, msg))
-    }
-    
-    if (state$itr > max_itr) {
-      log_message("Maximum function calls reached", "WARNING")
-      state$convergence<-0 # change status to not converged since max itr reached
-      return(state$out.df)
-      break
-    }
-    
-    pep.sim <- minhash(pep, k_size, hash_size)  #minhash similarity matrix
-    pep.sim <- pep.sim$dist_matrix
-    pep.sim[pep.sim<thresh] <- 0 # remove edges from nodes with similarity below threshold
-    c.index <- netcluster(pep.sim, louvain_resolution=sens) #cluster id
-    pep.ref <- cbind(pep, c.index) # combine cluster id with sequences
-    c.size <- tabulate(c.index) # count each cluster size
-    id.itr <- which(c.size > size_max) # cluster id above max size
-    id.rm <- which(c.size < size_min) # cluster id below min size
-    
-    # stop or recursion conditions for output
-    if (length(id.itr) == 0) {  
-      out.pep <- pep.ref[!pep.ref[,2] %in% id.rm,] # filter out those under minimum length
-      if (nrow(out.pep) > 0) { #ensure non-empty output
-        out.pep[,2] <- paste0(state$itr, ".", out.pep[,2]) #combine iteration and cluster to ensure uniqueness
-        state$out.df <- rbind(state$out.df, out.pep) # combine output df
-        state$clusters_processed <- state$clusters_processed + nrow(out.pep) # sum number of clusters processed
-      }
-    } else {
-      pep.out <- pep.ref[(!pep.ref[,2] %in% id.rm) & (!pep.ref[,2] %in% id.itr),] # recursion condition
-      if (nrow(pep.out) > 0) {
-        pep.out[,2] <- paste0(state$itr, ".", pep.out[,2])#combine iteration and cluster to ensure uniqueness
-        state$out.df <- rbind(state$out.df, pep.out)# combine output df
-        state$clusters_processed <- state$clusters_processed + nrow(pep.out)# sum number of clusters processed
-      }
-      
-      # filter remaining clusters
-      pep.new <- pep.ref[pep.ref[,2] %in% id.itr,]#clusters with size > max
-      loop.lvl <- unique(pep.new[,2])#set levels for loop
-      
-      # loop for remaining qualified clusters
-      for (i in seq_along(loop.lvl)) {
-        sub.df <- pep.new[pep.new[,2] == loop.lvl[i], 1] #filter ith cluster
-        state$itr <- state$itr + 1 #increment for iteration/function call
-        cluster_recursive(sub.df) #recursive call
-      }
-    }
-    
-    return(state$out.df)
-  }
-  
-  # run recursive clustering
-  result <- cluster_recursive(pep)
-  
-  # Final status report adapted from claude AI output
-  if (state$convergence==1){
-    cat(sprintf("\nClustering complete:\n"))
-  }else{
-    cat(sprintf("\nClustering incomplete, consider adjusting parameters:\n"))
-  }
-  cat(sprintf("Total clusters processed: %d\n", state$clusters_processed))
-  cat(sprintf("Total function calls: %d\n", state$itr))
-  
-  rm(state) # reset state global 
-  
-  return(result)
-}
-```
-
-```{r v7_12_02}
-clusterbreak <- function(pep, thresh=0.8,k_size=2, hash_size=50, size_max=10, size_min=3, sens=1.05, max_itr=10000) {
-  if (size_max <= size_min) {
-    stop("size_max must be greater than size_min")
-  }
-  if (length(pep) == 0) {
-    stop("empty input sequence vector")
-  }
-  
-  # Create new state environment
-  state <- new.env()
-  state$out.df <- matrix(nrow = 0, ncol = 2)
-  state$itr <- 1
-  state$clusters_processed <- 0
-  state$convergence <- 1
-  
-  cluster_recursive <- function(pep) {
-    
-    # Create helper function for logging adapted from Claude AI prompt
-    log_message <- function(msg, level="INFO") {
-      timestamp <- format(Sys.time(), "%H:%M:%S")
-      cat(sprintf("[%s] %s: %s\n", timestamp, level, msg))
-    }
-    
-    if (state$itr > max_itr) {
-      log_message("Maximum function calls reached", "WARNING")
-      state$convergence<-0 # change status to not converged since max itr reached
-      return(state$out.df)
-      break
-    }
-    
-    pep.sim <- minhash(pep, k_size, hash_size)  #minhash similarity matrix
-    pep.sim <- pep.sim$dist_matrix
-    pep.sim[pep.sim<thresh] <- 0 # remove edges from nodes with similarity below threshold
-    c.index <- netcluster(pep.sim, louvain_resolution=sens) #cluster id
-    pep.ref <- cbind(pep, c.index) # combine cluster id with sequences
-    c.size <- tabulate(c.index) # count each cluster size
-    id.itr <- which(c.size > size_max) # cluster id above max size
-    id.rm <- which(c.size < size_min) # cluster id below min size
-    
-    # stop or recursion conditions for output
-    if (length(id.itr) == 0) {  
-      out.pep <- pep.ref[!pep.ref[,2] %in% id.rm,] # filter out those under minimum length
-      if (nrow(out.pep) > 0) { #ensure non-empty output
-        out.pep[,2] <- paste0(state$itr, ".", out.pep[,2]) #combine iteration and cluster to ensure uniqueness
-        state$out.df <- rbind(state$out.df, out.pep) # combine output df
-        state$clusters_processed <- state$clusters_processed + nrow(out.pep) # sum number of clusters processed
-      }
-    } else {
-      pep.out <- pep.ref[(!pep.ref[,2] %in% id.rm) & (!pep.ref[,2] %in% id.itr),] # recursion condition
-      if (nrow(pep.out) > 0) {
-        pep.out[,2] <- paste0(state$itr, ".", pep.out[,2])#combine iteration and cluster to ensure uniqueness
-        state$out.df <- rbind(state$out.df, pep.out)# combine output df
-        state$clusters_processed <- state$clusters_processed + nrow(pep.out)# sum number of clusters processed
-      }
-      
-      # filter remaining clusters
-      pep.new <- pep.ref[pep.ref[,2] %in% id.itr,]#clusters with size > max
-      loop.lvl <- unique(pep.new[,2])#set levels for loop
-      
-      # loop for remaining qualified clusters
-      for (i in seq_along(loop.lvl)) {
-        sub.df <- pep.new[pep.new[,2] == loop.lvl[i], 1] #filter ith cluster
-        state$itr <- state$itr + 1 #increment for iteration/function call
-        cluster_recursive(sub.df) #recursive call
-      }
-    }
-    
-    return(state$out.df)
-  }
-  
-  # run recursive clustering
-  result <- cluster_recursive(pep)
-  
-  # Final status report adapted from claude AI output
-  if (state$convergence==1){
-    cat(sprintf("\nClustering complete:\n"))
-  }else{
-    cat(sprintf("\nClustering incomplete, consider adjusting parameters:\n"))
-  }
-  cat(sprintf("Total clusters processed: %d\n", state$clusters_processed))
-  cat(sprintf("Total function calls: %d\n", state$itr))
-  
-  rm(state) # reset state global 
-  
-  return(result)
-}
+sequences <- herpesvirus$PROBE_SEQUENCE[1:500]
+similarity_matrix <- similarityMH(sequences) 
+threshold <- quantile(similarity_matrix,0.8) 
+adjacency_matrix <- similarity_matrix 
+adjacency_matrix[adjacency_matrix<threshold] <- 0 
+network<-igraph::graph_from_adjacency_matrix(adjacency_matrix,mode="upper",weighted=TRUE) 
+louvain_mod(network,res=1.05) 
 ```
 

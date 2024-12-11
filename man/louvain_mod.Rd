@@ -19,7 +19,22 @@ louvain_mod(gin, res, res_range_perc = 0, res_step = 0, itr = 3)
 }
 \value{
 A clustered graph network optimized for modularity
+
+List containing:
+\item{cluster}{Final sequence cluster assignment}
+\item{resolution}{Best Louvain algorithm resolution found}
+\item{modularity}{Modularity using the best resolution}
 }
 \description{
 Modified Louvain Clustering function
+}
+\examples{
+library(DynaAlign)
+sequences <- herpesvirus$PROBE_SEQUENCE[1:500]
+similarity_matrix <- similarityMH(sequences)
+threshold <- quantile(similarity_matrix,0.8)
+adjacency_matrix <- similarity_matrix
+adjacency_matrix[adjacency_matrix<threshold] <- 0
+network<-igraph::graph_from_adjacency_matrix(adjacency_matrix,mode="upper",weighted=TRUE) 
+louvain_mod(network,res=1.05)
 }

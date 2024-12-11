@@ -8,30 +8,37 @@ netcluster(
   pepmat,
   igraph_mode = "upper",
   igraph_weight = TRUE,
-  louvain_resolution = 1.05,
-  louvain_range_perc = 0,
-  louvain_step = 0,
-  louvain_itr = 3
+  cluster_func = function(x, ...) igraph::cluster_louvain(x, resolution = 1.05,
+    ...)$membership,
+  cluster_weight = TRUE
 )
 }
 \arguments{
-\item{pepmat}{A square or upper triangular similarity matrix}
+\item{pepmat}{A square or upper triangular adjacency matrix}
 
 \item{igraph_mode}{Mode settings for igraph (default: "upper")}
 
 \item{igraph_weight}{Weight setting (TRUE/NULL) for igraph (default: TRUE)}
 
-\item{louvain_resolution}{Resolution setting for Louvain algorithm (default: 1.05)}
-
-\item{louvain_range_perc}{Resolution sensitivity range (default: 0)}
-
-\item{louvain_step}{Number of steps to break the sensitivity range (default: 0)}
-
-\item{louvain_itr}{Number of iterations to run for each resolution (default: 3)}
+\item{cluster_func}{Any function to perform network-based cluster compatible with igraph networks that must return a numeric list of cluster assignment}
 }
 \value{
-A vector containing cluster assignment
+A vector containing cluster assignment.
 }
 \description{
 Generate cluster id using graph network and louvain method
+}
+\examples{
+library(DynaAlign)
+sequences <- herpesvirus$PROBE_SEQUENCE[1:500]
+similarity_matrix <- similarityMH(sequences)
+threshold <- quantile(similarity_matrix,0.8)
+adjacency_matrix <- similarity_matrix
+adjacency_matrix[adjacency_matrix<threshold] <- 0
+
+#default Louvain algorithms takes in network edge weights
+netcluster(pepmat = adjacency_matrix,cluster_weight = TRUE)
+
+#use custom cluster function without using edge weights
+netcluster(pepmat = adjacency_matrix,cluster_weight=F,cluster_func=function(x,...) louvain_mod(gin=x,res=1.05,...)$cluster)
 }

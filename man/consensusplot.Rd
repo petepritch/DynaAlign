@@ -4,7 +4,14 @@
 \alias{consensusplot}
 \title{Plot consensus sequences for each cluster in a clustered network}
 \usage{
-consensusplot(df, k_size = 2, hash_size = 50, threshold = 0.8, sens = 1.05)
+consensusplot(
+  df,
+  k_size = 2,
+  hash_size = 50,
+  threshold_p = 0.8,
+  sens = 1.05,
+  ...
+)
 }
 \arguments{
 \item{df}{Input clusterconsensus function output}
@@ -13,13 +20,27 @@ consensusplot(df, k_size = 2, hash_size = 50, threshold = 0.8, sens = 1.05)
 
 \item{hash_size}{number of hash functions}
 
-\item{threshold}{binary threshold for adjacency matrix}
-
 \item{sens}{Louvain algorithm sensitivity}
+
+\item{threshold}{binary threshold for adjacency matrix}
 }
 \value{
 hash_size hash function size
 }
 \description{
 Plot consensus sequences for each cluster in a clustered network
+}
+\examples{
+library(DynaAlign)
+test <- h3n2sample \%>\% dplyr::group_by(clade) \%>\% dplyr::sample_frac(.4)
+test <- test \%>\% dplyr::distinct(sequence,.keep_all=T)
+out.df <- clusterbreak(h3n2sample$sequence,size_max = 800,thresh_p=.8,sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
+consensus_seq <- clusterconsensus(out.df$clustered_seq)
+
+#default plot
+plot.consensus <- consensusplot(consensus_seq)
+plot.consensus
+
+#can input igraph compatible plot parameter
+consensusplot(conc,vertex.size=0,edge.width=NA)
 }
