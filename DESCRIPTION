@@ -21,13 +21,13 @@ Imports:
     methods,
     igraph,
     Biostrings, 
-    DECIPHER,
-    dplyr
+    DECIPHER
 Depends: 
     R (>= 2.10)
 Suggests: 
     knitr,
     rmarkdown,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    dplyr
 Config/testthat/edition: 3
 VignetteBuilder: knitr

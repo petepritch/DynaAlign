@@ -14,18 +14,20 @@ consensusplot(
 )
 }
 \arguments{
-\item{df}{Input clusterconsensus function output}
+\item{df}{Input clusterconsensus function output.}
 
-\item{k_size}{minhash kmer size}
+\item{k_size}{Minhash kmer size.}
 
-\item{hash_size}{number of hash functions}
+\item{hash_size}{Number of hash functions.}
 
-\item{sens}{Louvain algorithm sensitivity}
+\item{threshold_p}{Binary threshold for adjacency matrix.}
 
-\item{threshold}{binary threshold for adjacency matrix}
+\item{sens}{Louvain algorithm sensitivity.}
+
+\item{...}{Additional arguments passed to igraph plot function.}
 }
 \value{
-hash_size hash function size
+A graph visualization of the consensus sequence network.
 }
 \description{
 Plot consensus sequences for each cluster in a clustered network

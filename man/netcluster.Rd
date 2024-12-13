@@ -2,7 +2,7 @@
 % Please edit documentation in R/clusterbreak.R
 \name{netcluster}
 \alias{netcluster}
-\title{Generate cluster id using graph network and louvain method}
+\title{Generate cluster ID using graph network and Louvain method}
 \usage{
 netcluster(
   pepmat,
@@ -14,19 +14,21 @@ netcluster(
 )
 }
 \arguments{
-\item{pepmat}{A square or upper triangular adjacency matrix}
+\item{pepmat}{A square or upper triangular adjacency matrix.}
 
-\item{igraph_mode}{Mode settings for igraph (default: "upper")}
+\item{igraph_mode}{Mode settings for igraph (default: "upper").}
 
-\item{igraph_weight}{Weight setting (TRUE/NULL) for igraph (default: TRUE)}
+\item{igraph_weight}{Weight setting (TRUE/NULL) for igraph (default: TRUE).}
 
-\item{cluster_func}{Any function to perform network-based cluster compatible with igraph networks that must return a numeric list of cluster assignment}
+\item{cluster_func}{Function to perform network-based clustering compatible with igraph networks.}
+
+\item{cluster_weight}{Logical value indicating whether to use network edge weights in the clustering function.}
 }
 \value{
-A vector containing cluster assignment.
+A numeric vector containing cluster assignments.
 }
 \description{
-Generate cluster id using graph network and louvain method
+Generate cluster ID using graph network and Louvain method
 }
 \examples{
 library(DynaAlign)

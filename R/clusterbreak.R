@@ -56,16 +56,17 @@ louvain_mod <- function(gin, res, res_range_perc = 0, res_step = 0, itr = 3) {
               modularity=best_modularity))
 }
 
-#' Generate cluster id using graph network and louvain method
-#' 
-#' @param pepmat A square or upper triangular adjacency matrix
-#' @param igraph_mode Mode settings for igraph (default: "upper")
-#' @param igraph_weight Weight setting (TRUE/NULL) for igraph (default: TRUE)
-#' @param cluster_func Any function to perform network-based cluster compatible with igraph networks that must return a numeric list of cluster assignment
-#' 
-#' @return A vector containing cluster assignment.
+#' Generate cluster ID using graph network and Louvain method
+#'
+#' @param pepmat A square or upper triangular adjacency matrix.
+#' @param igraph_mode Mode settings for igraph (default: "upper").
+#' @param igraph_weight Weight setting (TRUE/NULL) for igraph (default: TRUE).
+#' @param cluster_func Function to perform network-based clustering compatible with igraph networks.
+#' @param cluster_weight Logical value indicating whether to use network edge weights in the clustering function.
+#'
+#' @return A numeric vector containing cluster assignments.
 #' @export
-#' 
+#'
 #' @importFrom igraph graph_from_adjacency_matrix E cluster_louvain
 #' 
 #' @examples
@@ -261,15 +262,16 @@ clusterconsensus <- function(df) {
 
 #' Plot consensus sequences for each cluster in a clustered network
 #'
-#' @param df Input clusterconsensus function output
-#' @param k_size minhash kmer size
-#' @param hash_size number of hash functions
-#' @param threshold binary threshold for adjacency matrix
-#' @param sens Louvain algorithm sensitivity
-#' 
-#' @return hash_size hash function size
+#' @param df Input clusterconsensus function output.
+#' @param k_size Minhash kmer size.
+#' @param hash_size Number of hash functions.
+#' @param threshold_p Binary threshold for adjacency matrix.
+#' @param sens Louvain algorithm sensitivity.
+#' @param ... Additional arguments passed to igraph plot function.
+#'
+#' @return A graph visualization of the consensus sequence network.
 #' @export
-#' 
+#'
 #' @importFrom igraph graph_from_adjacency_matrix E cluster_louvain V layout_with_fr
 #' 
 #' @examples
