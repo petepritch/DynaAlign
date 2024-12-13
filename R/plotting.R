@@ -1,9 +1,9 @@
 # File: R/plotting.R
-#' Plot MinHash Distance Matrix
+#' Plot Similarity Matrix
 #'
-#' Creates a heatmap visualization of the MinHash distance matrix.
+#' Creates a heatmap visualization of a similarity matrix.
 #'
-#' @param x A minhash_result object
+#' @param X A similarity matrix (symmetric matrix of pairwise similarities)
 #' @param cluster logical; whether to cluster the sequences
 #' @param ... Additional parameters passed to heatmap
 #'
@@ -11,12 +11,19 @@
 #' @export
 #'
 #' @importFrom stats hclust dist as.dendrogram heatmap
-plot.minhash_result <- function(x, cluster = TRUE, ...) {
-  heatmap(x$dist_matrix,
-          Rowv = if(cluster) as.dendrogram(hclust(dist(x$dist_matrix))) else NA,
-          Colv = if(cluster) as.dendrogram(hclust(dist(t(x$dist_matrix)))) else NA,
-          main = "Sequence Similarity Heatmap",
-          xlab = "Sequence Index",
-          ylab = "Sequence Index",
+plot_similarity_matrix <- function(X, cluster = TRUE, ...) {
+  if (!is.matrix(X)) {
+    stop("Input must be a matrix")
+  }
+  if (!isSymmetric(X)) {
+    warning("Input matrix is not symmetric. Results may be unexpected.")
+  }
+  
+  heatmap(X,
+          Rowv = if(cluster) as.dendrogram(hclust(dist(X))) else NA,
+          Colv = if(cluster) as.dendrogram(hclust(dist(t(X)))) else NA,
+          main = "Similarity Matrix Heatmap",
+          xlab = "Sequence/Item Index",
+          ylab = "Sequence/Item Index",
           ...)
 }

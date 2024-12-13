@@ -30,6 +30,20 @@ This software was developed for partial credit BIOSTAT 615 Statistical Computing
 
 ## Example Usage
 
+```r
+# Load sequence data
+data(evp_peparray)
+sequences <- evp_peparray$PROBE_SEQUENCE
+
+# Create similarity matrix using MinHash
+X <- similarityMH(sequences, k = 2, n_hash = 50)
+
+# Plot heatmap
+plot_similarity_matrix(X)
+```
+
+![](man/figures/heatmap.png)
+
 ## Contributing
 
 1. Fork (https://github.com/petepritch/DynaAlign/fork)

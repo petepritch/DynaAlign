@@ -4,14 +4,14 @@
 \alias{compute_similarity_stats}
 \title{Calculate Similarity Statistics}
 \usage{
-compute_similarity_stats(result)
+compute_similarity_stats(X)
 }
 \arguments{
-\item{result}{A minhash_result object}
+\item{X}{A symmetric similarity matrix}
 }
 \value{
 A list of similarity statistics
 }
 \description{
-Computes various similarity statistics for the sequence set.
+Computes various similarity statistics for a given similarity matrix.
 }
