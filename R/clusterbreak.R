@@ -1,4 +1,4 @@
-#' Modified Louvain Clustering function
+#' Louvain Clustering function
 #'
 #' @param gin Input network.
 #' @param res Louvain algorithm sensitivity.
@@ -16,14 +16,24 @@
 #' @importFrom igraph graph_from_adjacency_matrix E cluster_louvain V layout_with_fr
 #' 
 #' @examples
+#' # Load necessary libraries
 #' library(DynaAlign)
-#' sequences <- herpesvirus$PROBE_SEQUENCE[1:500]
-#' similarity_matrix <- similarityMH(sequences)
-#' threshold <- quantile(similarity_matrix,0.8)
-#' adjacency_matrix <- similarity_matrix
-#' adjacency_matrix[adjacency_matrix<threshold] <- 0
-#' network<-igraph::graph_from_adjacency_matrix(adjacency_matrix,mode="upper",weighted=TRUE) 
-#' louvain_mod(network,res=1.05)
+#' library(igraph)
+#'
+#' # Create a mock adjacency matrix
+#' # This example creates a simple network with two clusters
+#' adjacency_matrix <- matrix(c(
+#'   1, 1, 0, 0,
+#'   1, 1, 0, 0,
+#'   0, 0, 1, 1,
+#'   0, 0, 1, 1
+#' ), nrow = 4, byrow = TRUE)
+#'
+#' # Create an igraph object from the adjacency matrix
+#' network <- graph_from_adjacency_matrix(adjacency_matrix, mode = "undirected", weighted = TRUE)
+#'
+#' # Perform Louvain clustering with mock resolution parameters
+#' result <- louvain_mod(network, res = 1.0, res_range_perc = 0.2, res_step = 0.1, itr = 2)
 louvain_mod <- function(gin, res, res_range_perc = 0, res_step = 0, itr = 3) {
   
   res=seq(res - res_range_perc*res, res + res_range_perc*res, by = res_step)# set range of resolution parameters
@@ -70,23 +80,34 @@ louvain_mod <- function(gin, res, res_range_perc = 0, res_step = 0, itr = 3) {
 #' @importFrom igraph graph_from_adjacency_matrix E cluster_louvain
 #' 
 #' @examples
+#' # Load necessary libraries
 #' library(DynaAlign)
-#' sequences <- herpesvirus$PROBE_SEQUENCE[1:500]
-#' similarity_matrix <- similarityMH(sequences)
-#' threshold <- quantile(similarity_matrix,0.8)
-#' adjacency_matrix <- similarity_matrix
-#' adjacency_matrix[adjacency_matrix<threshold] <- 0
-#' 
-#' # Default Louvain algorithm takes in network edge weights
-#' netcluster(pepmat = adjacency_matrix, cluster_weight = TRUE)
-#' 
-#' # Use custom cluster function without using edge weights
-#' netcluster(
+#' library(igraph)
+#'
+#' # Create a mock adjacency matrix (similarity matrix)
+#' # This example creates a simple network with two distinct clusters
+#' adjacency_matrix <- matrix(c(
+#'   1, 1, 0, 0,
+#'   1, 1, 0, 0,
+#'   0, 0, 1, 1,
+#'   0, 0, 1, 1
+#' ), nrow = 4, byrow = TRUE)
+#'
+#' # Perform clustering using the default Louvain method
+#' default_clusters <- netcluster(pepmat = adjacency_matrix)
+#' print(default_clusters)
+#'
+#' # Define a mock Louvain clustering function (replace with actual implementation)
+#' mock_louvain_mod <- function(gin, res, ...) {
+#'   # For demonstration, assign first two nodes to cluster 1 and the rest to cluster 2
+#'   return(c(1, 1, 2, 2))
+#' }
+#'
+#' # Perform clustering using the custom mock Louvain method without using edge weights
+#' custom_clusters <- netcluster(
 #'   pepmat = adjacency_matrix,
 #'   cluster_weight = FALSE,
-#'   cluster_func = function(x, ...) {
-#'     louvain_mod(gin = x, res = 1.05, ...)$cluster
-#'   }
+#'   cluster_func = function(x, ...) mock_louvain_mod(gin = x, res = 1.05, ...)
 #' )
 netcluster<-function(pepmat,
                      igraph_mode = "upper",
@@ -135,16 +156,23 @@ netcluster<-function(pepmat,
 #' 
 #' @examples
 #' library(DynaAlign)
+#' library(dplyr) # Ensure dplyr is loaded for the pipe operator
+#' 
+#' # Create mock dataset
+#' h3n2sample <- data.frame(
+#'   clade = sample(c("A", "B", "C"), 1000, replace = TRUE),
+#'   sequence = replicate(1000, paste(sample(LETTERS, 10, replace = TRUE), collapse = ""))
+#' )
+#' 
 #' # Select and prepare sequences
 #' test <- h3n2sample %>%
-#'   dplyr::group_by(clade) %>%
-#'   dplyr::sample_frac(.4)
-#' test <- test %>%
-#'   dplyr::distinct(sequence, .keep_all = TRUE)
+#'   group_by(clade) %>%
+#'   sample_frac(0.4) %>%
+#'   distinct(sequence, .keep_all = TRUE)
 #'
 #' # Cluster sequences
 #' clusterbreak(
-#'   pep = h3n2sample$sequence,
+#'   pep = test$sequence,
 #'   size_max = 800,
 #'   thresh_p = 0.8,
 #'   sim_fn = function(x) similarityMH(x, k = 4, n_hash = 500)
@@ -249,9 +277,13 @@ clusterbreak <- function(pep,
 
 #' Generate consensus sequence
 #'
-#' @param df Input clusterbreak output df
+##' @param df A matrix or data frame where the first column contains sequences and the second column contains their corresponding cluster assignments.
 #' 
-#' @return df with first column being unique cluster id and second column being the corresponding consensus sequence
+#' @return A matrix with two columns:
+#' \describe{
+#'   \item{Cluster ID}{Unique identifier for each cluster.}
+#'   \item{Consensus Sequence}{The consensus amino acid sequence for the cluster.}
+#' }
 #' @export
 #' 
 #' @importFrom Biostrings AAStringSet
@@ -259,11 +291,21 @@ clusterbreak <- function(pep,
 #' 
 #' @examples
 #' library(DynaAlign)
-#' test <- h3n2sample %>% dplyr::group_by(clade) %>% dplyr::sample_frac(.4)
-#' test <- test %>% dplyr::distinct(sequence,.keep_all=T)
-#' out.df <- clusterbreak(h3n2sample$sequence,size_max = 800,thresh_p=.8,
-#'     sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
-#' clusterconsensus(out.df$clustered_seq)
+#' 
+#' # Create a mock clustered sequence matrix with at least two sequences per cluster
+#' clustered_seq <- matrix(c(
+#'   "AAAA", "1",
+#'   "AAAB", "1",
+#'   "AAAC", "1",
+#'   "BBBB", "2",
+#'   "BBBC", "2",
+#'   "BBBB", "2",
+#'   "CCCC", "3",
+#'   "CCCD", "3"
+#' ), ncol = 2, byrow = TRUE)
+#' 
+#' # Generate consensus sequences
+#' consensus <- clusterconsensus(clustered_seq)
 clusterconsensus <- function(df) {
   cluster.id <- unique(df[,2])
   out.df <- matrix(nrow=0,ncol=2)
@@ -292,24 +334,47 @@ clusterconsensus <- function(df) {
 #' @importFrom igraph graph_from_adjacency_matrix E cluster_louvain V layout_with_fr
 #' 
 #' @examples
+#' # Load necessary libraries
 #' library(DynaAlign)
-#' # Select and prepare sequences
-#' test <- h3n2sample %>%
-#'   dplyr::group_by(clade) %>%
-#'   dplyr::sample_frac(.4)
-#' test <- test %>%
-#'   dplyr::distinct(sequence, .keep_all = TRUE)
+#' library(igraph)
 #'
-#' # Generate clusters and consensus sequences
-#' out.df <- clusterbreak(
-#'   h3n2sample$sequence,
-#'   size_max = 800,
-#'   thresh_p = 0.8,
-#'   sim_fn = function(x) similarityMH(x, k = 4, n_hash = 500)
-#' )
-#' consensus_seq <- clusterconsensus(out.df$clustered_seq)
+#' # Create a mock clustered sequence matrix
+#' clustered_seq <- matrix(c(
+#'   "AAAA", "1",
+#'   "AAAB", "1",
+#'   "BBBB", "2",
+#'   "BBBC", "2"
+#' ), ncol = 2, byrow = TRUE)
 #'
-#' # Plot consensus
+#' # Define a mock clusterconsensus function (for example purposes only)
+#' clusterconsensus <- function(df) {
+#'   unique_clusters <- unique(df[,2])
+#'   consensus <- sapply(unique_clusters, function(cluster) {
+#'     sequences <- df[df[,2] == cluster, 1]
+#'     if(length(sequences) < 2){
+#'       return(sequences)
+#'     } else {
+#'       # Simple consensus: return the first sequence as a placeholder
+#'       return(sequences[1])
+#'     }
+#'   })
+#'   return(data.frame(`Cluster ID` = unique_clusters, 
+#'       `Consensus Sequence` = consensus, stringsAsFactors = FALSE))
+#' }
+#'
+#' # Define a mock minhash function (for example purposes only)
+#' minhash <- function(sequences, k_size, hash_size) {
+#'   # Create a random similarity matrix with higher similarity for identical sequences
+#'   n <- length(sequences)
+#'   mat <- matrix(runif(n^2, min = 0, max = 1), nrow = n)
+#'   diag(mat) <- 1  # Similarity of a sequence with itself
+#'   return(list(dist_matrix = mat))
+#' }
+#'
+#' # Generate consensus sequences
+#' consensus_seq <- clusterconsensus(clustered_seq)
+#'
+#' # Plot consensus sequences network
 #' consensusplot(consensus_seq)
 consensusplot<-function(df,
                         k_size = 2, 

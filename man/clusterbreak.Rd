@@ -43,16 +43,23 @@ Generate clusters with specified sizes using graph network and louvain method
 }
 \examples{
 library(DynaAlign)
+library(dplyr) # Ensure dplyr is loaded for the pipe operator
+
+# Create mock dataset
+h3n2sample <- data.frame(
+  clade = sample(c("A", "B", "C"), 1000, replace = TRUE),
+  sequence = replicate(1000, paste(sample(LETTERS, 10, replace = TRUE), collapse = ""))
+)
+
 # Select and prepare sequences
 test <- h3n2sample \%>\%
-  dplyr::group_by(clade) \%>\%
-  dplyr::sample_frac(.4)
-test <- test \%>\%
-  dplyr::distinct(sequence, .keep_all = TRUE)
+  group_by(clade) \%>\%
+  sample_frac(0.4) \%>\%
+  distinct(sequence, .keep_all = TRUE)
 
 # Cluster sequences
 clusterbreak(
-  pep = h3n2sample$sequence,
+  pep = test$sequence,
   size_max = 800,
   thresh_p = 0.8,
   sim_fn = function(x) similarityMH(x, k = 4, n_hash = 500)

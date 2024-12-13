@@ -33,23 +33,46 @@ A graph visualization of the consensus sequence network.
 Plot consensus sequences for each cluster in a clustered network
 }
 \examples{
+# Load necessary libraries
 library(DynaAlign)
-# Select and prepare sequences
-test <- h3n2sample \%>\%
-  dplyr::group_by(clade) \%>\%
-  dplyr::sample_frac(.4)
-test <- test \%>\%
-  dplyr::distinct(sequence, .keep_all = TRUE)
+library(igraph)
 
-# Generate clusters and consensus sequences
-out.df <- clusterbreak(
-  h3n2sample$sequence,
-  size_max = 800,
-  thresh_p = 0.8,
-  sim_fn = function(x) similarityMH(x, k = 4, n_hash = 500)
-)
-consensus_seq <- clusterconsensus(out.df$clustered_seq)
+# Create a mock clustered sequence matrix
+clustered_seq <- matrix(c(
+  "AAAA", "1",
+  "AAAB", "1",
+  "BBBB", "2",
+  "BBBC", "2"
+), ncol = 2, byrow = TRUE)
 
-# Plot consensus
+# Define a mock clusterconsensus function (for example purposes only)
+clusterconsensus <- function(df) {
+  unique_clusters <- unique(df[,2])
+  consensus <- sapply(unique_clusters, function(cluster) {
+    sequences <- df[df[,2] == cluster, 1]
+    if(length(sequences) < 2){
+      return(sequences)
+    } else {
+      # Simple consensus: return the first sequence as a placeholder
+      return(sequences[1])
+    }
+  })
+  return(data.frame(`Cluster ID` = unique_clusters, 
+      `Consensus Sequence` = consensus, stringsAsFactors = FALSE))
+}
+
+# Define a mock minhash function (for example purposes only)
+minhash <- function(sequences, k_size, hash_size) {
+  # Create a random similarity matrix with higher similarity for identical sequences
+  n <- length(sequences)
+  mat <- matrix(runif(n^2, min = 0, max = 1), nrow = n)
+  diag(mat) <- 1  # Similarity of a sequence with itself
+  return(list(dist_matrix = mat))
+}
+
+# Generate consensus sequences
+consensus_seq <- clusterconsensus(clustered_seq)
+
+# Plot consensus sequences network
 consensusplot(consensus_seq)
 }

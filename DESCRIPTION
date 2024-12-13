@@ -20,7 +20,8 @@ Imports:
     Rcpp,
     igraph,
     Biostrings, 
-    DECIPHER
+    DECIPHER,
+    stats
 Depends: 
     R (>= 2.10)
 Suggests: 

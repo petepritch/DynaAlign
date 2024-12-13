@@ -7,19 +7,33 @@
 clusterconsensus(df)
 }
 \arguments{
-\item{df}{Input clusterbreak output df}
+\item{df}{A matrix or data frame where the first column contains sequences and the second column contains their corresponding cluster assignments.}
 }
 \value{
-df with first column being unique cluster id and second column being the corresponding consensus sequence
+A matrix with two columns:
+\describe{
+\item{Cluster ID}{Unique identifier for each cluster.}
+\item{Consensus Sequence}{The consensus amino acid sequence for the cluster.}
+}
 }
 \description{
 Generate consensus sequence
 }
 \examples{
 library(DynaAlign)
-test <- h3n2sample \%>\% dplyr::group_by(clade) \%>\% dplyr::sample_frac(.4)
-test <- test \%>\% dplyr::distinct(sequence,.keep_all=T)
-out.df <- clusterbreak(h3n2sample$sequence,size_max = 800,thresh_p=.8,
-    sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
-clusterconsensus(out.df$clustered_seq)
+
+# Create a mock clustered sequence matrix with at least two sequences per cluster
+clustered_seq <- matrix(c(
+  "AAAA", "1",
+  "AAAB", "1",
+  "AAAC", "1",
+  "BBBB", "2",
+  "BBBC", "2",
+  "BBBB", "2",
+  "CCCC", "3",
+  "CCCD", "3"
+), ncol = 2, byrow = TRUE)
+
+# Generate consensus sequences
+consensus <- clusterconsensus(clustered_seq)
 }

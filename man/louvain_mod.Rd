@@ -2,7 +2,7 @@
 % Please edit documentation in R/clusterbreak.R
 \name{louvain_mod}
 \alias{louvain_mod}
-\title{Modified Louvain Clustering function}
+\title{Louvain Clustering function}
 \usage{
 louvain_mod(gin, res, res_range_perc = 0, res_step = 0, itr = 3)
 }
@@ -26,15 +26,25 @@ List containing:
 \item{modularity}{Modularity using the best resolution}
 }
 \description{
-Modified Louvain Clustering function
+Louvain Clustering function
 }
 \examples{
+# Load necessary libraries
 library(DynaAlign)
-sequences <- herpesvirus$PROBE_SEQUENCE[1:500]
-similarity_matrix <- similarityMH(sequences)
-threshold <- quantile(similarity_matrix,0.8)
-adjacency_matrix <- similarity_matrix
-adjacency_matrix[adjacency_matrix<threshold] <- 0
-network<-igraph::graph_from_adjacency_matrix(adjacency_matrix,mode="upper",weighted=TRUE) 
-louvain_mod(network,res=1.05)
+library(igraph)
+
+# Create a mock adjacency matrix
+# This example creates a simple network with two clusters
+adjacency_matrix <- matrix(c(
+  1, 1, 0, 0,
+  1, 1, 0, 0,
+  0, 0, 1, 1,
+  0, 0, 1, 1
+), nrow = 4, byrow = TRUE)
+
+# Create an igraph object from the adjacency matrix
+network <- graph_from_adjacency_matrix(adjacency_matrix, mode = "undirected", weighted = TRUE)
+
+# Perform Louvain clustering with mock resolution parameters
+result <- louvain_mod(network, res = 1.0, res_range_perc = 0.2, res_step = 0.1, itr = 2)
 }

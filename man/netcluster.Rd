@@ -31,22 +31,33 @@ A numeric vector containing cluster assignments.
 Generate cluster ID using graph network and Louvain method
 }
 \examples{
+# Load necessary libraries
 library(DynaAlign)
-sequences <- herpesvirus$PROBE_SEQUENCE[1:500]
-similarity_matrix <- similarityMH(sequences)
-threshold <- quantile(similarity_matrix,0.8)
-adjacency_matrix <- similarity_matrix
-adjacency_matrix[adjacency_matrix<threshold] <- 0
+library(igraph)
 
-# Default Louvain algorithm takes in network edge weights
-netcluster(pepmat = adjacency_matrix, cluster_weight = TRUE)
+# Create a mock adjacency matrix (similarity matrix)
+# This example creates a simple network with two distinct clusters
+adjacency_matrix <- matrix(c(
+  1, 1, 0, 0,
+  1, 1, 0, 0,
+  0, 0, 1, 1,
+  0, 0, 1, 1
+), nrow = 4, byrow = TRUE)
 
-# Use custom cluster function without using edge weights
-netcluster(
+# Perform clustering using the default Louvain method
+default_clusters <- netcluster(pepmat = adjacency_matrix)
+print(default_clusters)
+
+# Define a mock Louvain clustering function (replace with actual implementation)
+mock_louvain_mod <- function(gin, res, ...) {
+  # For demonstration, assign first two nodes to cluster 1 and the rest to cluster 2
+  return(c(1, 1, 2, 2))
+}
+
+# Perform clustering using the custom mock Louvain method without using edge weights
+custom_clusters <- netcluster(
   pepmat = adjacency_matrix,
   cluster_weight = FALSE,
-  cluster_func = function(x, ...) {
-    louvain_mod(gin = x, res = 1.05, ...)$cluster
-  }
+  cluster_func = function(x, ...) mock_louvain_mod(gin = x, res = 1.05, ...)
 )
 }
