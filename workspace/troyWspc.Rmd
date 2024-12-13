@@ -1,6 +1,5 @@
 ```{r library}
-library(igraph)
-library(devtools)
+
 rm(list=ls())
 ```
 
@@ -10,6 +9,238 @@ load_all()
 seq=herpesvirus$PROBE_SEQUENCE
 ```
 
+```{r testing}
+# load main package
+# library(DynaAlign)
+# library(devtools)
+load_all()
+
+################################################################################
+# evaluate similarity matrix generation
+library(DECIPHER)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(microbenchmark)
+library(ggplot2)
+library(mclust)
+ library(viridis)
+######
+# load testing datasets
+## short ~12aa
+testpep <- herpesvirus
+testpep$SEQ_VIRUS <- stringr::str_split_fixed(testpep$SEQ_INFO,"\\|",4)[,3]
+set.seed(2024)
+testpep <- testpep %>% dplyr::distinct(PROBE_SEQUENCE,.keep_all = T) %>% 
+  dplyr::group_by(SEQ_VIRUS) %>% dplyr::sample_frac(.008)
+## long ~560aa
+set.seed(2024)
+testha <- h3n2sample %>% dplyr::group_by(clade) %>% dplyr::sample_frac(.008) %>% dplyr::ungroup()
+testha <- testha %>% dplyr::distinct(sequence,.keep_all=T)
+######
+# generat similarity matrices for short dataset
+
+# function to evaluate pearson correlation between different methods
+## DECIPHER 
+testpep.aa <- AAStringSet(testpep$PROBE_SEQUENCE)
+testpep.aa <- AlignSeqs(testpep.aa)
+testpep.aa.DM <- DistanceMatrix(testpep.aa)
+padec.matrix <- 1 - as.matrix(testpep.aa.DM)
+## pairwise 
+pa.matrix <- similarityNW(testpep$PROBE_SEQUENCE)
+
+
+cor_eval_mh_rmh <- function(seq,pa.in,padec,k.mh,n.mh){
+
+  mh.matrix <- similarityMH(seq,k=k.mh,n_hash=n.mh) # rcpp min hash
+  rmh.matrix <- 1-minhash(seq,k=k.mh,n_hash=n.mh)$dist_matrix# R min hash
+  
+  pa.in <- pa.in[upper.tri(pa.in)]
+  padec <- padec[upper.tri(padec)]
+  mh.matrix <- mh.matrix[upper.tri(mh.matrix)]
+  pa.matrix <- pa.matrix[upper.tri(pa.matrix)]
+  rmh.matrix <- rmh.matrix[upper.tri(rmh.matrix)]
+  
+  return(c(cor(pa.in,padec,method = "pearson", use = "complete.obs"),
+           cor(mh.matrix,rmh.matrix,method = "pearson"),
+           cor(pa.in,mh.matrix,method = "pearson"),        
+           cor(padec,mh.matrix,method = "pearson",use = "complete.obs")
+           ))
+}
+
+k.input=4
+short.sim.result=t(replicate(50,cor_eval_mh_rmh(testpep$PROBE_SEQUENCE,pa.matrix,padec.matrix,k.input,50)))
+short.sim.result.summary=as.data.frame(short.sim.result) %>% 
+  summarise( 
+    mean.pa_padec = mean(.[[1]]),
+    sd.pa_padec = sd(.[[1]]),
+    mean.mh_rmh = mean(.[[2]]),
+    sd.mh_rmh = sd(.[[2]]),
+    mean.pa_mh = mean(.[[3]]),
+    sd.pa_mh = sd(.[[3]]),
+    mean.padec_mh = mean(.[[4]]),
+    sd.padec_mh = sd(.[[4]]),
+    )
+write.csv(short.sim.result.summary,paste0("C:/Users/chowz/OneDrive/umich/2024 Fall/BIOS 615/final project/output/short_correlation_summ_k_",k.input,".csv"),row.names = F)
+
+
+short.sim.result.plot=as.data.frame(short.sim.result)
+colnames(short.sim.result.plot)=c("pa_padec","mh_rmh","pa_mh","padec_mh")
+short.sim.result.plot=short.sim.result.plot %>% pivot_longer(cols=c(1:4),names_to="comparison",values_to="cor")
+short.sim.result.plot.gg=ggplot(short.sim.result.plot, aes(x = comparison, y = cor)) +
+  geom_boxplot() + theme_classic()+geom_jitter(width = 0.2, alpha = 0.1, color = "blue") +  
+  labs(x = "comparison", y = "Pearson correlation coefficient")+
+  scale_y_continuous(limits=c(0,1),n.breaks=6)
+
+ggsave(paste0("C:/Users/chowz/OneDrive/umich/2024 Fall/BIOS 615/final project/output/short_correlation_summ_k_",k.input,"_plot.png"), plot = short.sim.result.plot.gg, width = 5, height = 5, dpi = 300)
+
+###
+# for longer sequences
+## DECIPHER 
+testpep.aa.l <- AAStringSet(testha$sequence)
+testpep.aa.l <- AlignSeqs(testpep.aa.l)
+testpep.aa.DM.l <- DistanceMatrix(testpep.aa.l)
+padec.matrix.l <- 1 - as.matrix(testpep.aa.DM.l)
+## pairwise 
+pa.matrix.l <- similarityNW(testha$sequence,matrixName = "BLOSUM80")
+
+
+k.input=3
+long.sim.result=t(replicate(50,cor_eval_mh_rmh(testha$sequence,pa.matrix.l,padec.matrix.l,k.input,600)))
+long.sim.result.summary=as.data.frame(long.sim.result) %>% 
+  summarise( 
+    mean.pa_padec = mean(.[[1]]),
+    sd.pa_padec = sd(.[[1]]),
+    mean.mh_rmh = mean(.[[2]]),
+    sd.mh_rmh = sd(.[[2]]),
+    mean.pa_mh = mean(.[[3]]),
+    sd.pa_mh = sd(.[[3]]),
+    mean.padec_mh = mean(.[[4]]),
+    sd.padec_mh = sd(.[[4]]),
+    )
+write.csv(long.sim.result.summary,paste0("C:/Users/chowz/OneDrive/umich/2024 Fall/BIOS 615/final project/output/long_correlation_summ_k_",k.input,".csv"),row.names = F)
+# microbenchmark(similarityMH(testpep$PROBE_SEQUENCE,k=2,n_hash=50),
+#                 similarityNW(testpep$PROBE_SEQUENCE),
+#                minhash(testpep$PROBE_SEQUENCE,k=2,n_hash=50))
+
+long.sim.result.plot=as.data.frame(long.sim.result)
+colnames(long.sim.result.plot)=c("pa_padec","mh_rmh","pa_mh","padec_mh")
+long.sim.result.plot=long.sim.result.plot %>% pivot_longer(cols=c(1:4),names_to="comparison",values_to="cor")
+long.sim.result.plot.gg=ggplot(long.sim.result.plot, aes(x = comparison, y = cor)) +
+  geom_boxplot() + theme_classic()+geom_jitter(width = 0.2, alpha = 0.1, color = "blue") +  
+  labs(x = "comparison", y = "Pearson correlation coefficient")+
+  scale_y_continuous(limits=c(-1,1),n.breaks=12)
+ggsave(paste0("C:/Users/chowz/OneDrive/umich/2024 Fall/BIOS 615/final project/output/long_correlation_summ_k_",k.input,"_plot.png"), plot = long.sim.result.plot.gg, width = 5, height = 5, dpi = 300)
+################################################################################
+# classification
+
+      ##explore short data
+      testpep.s<- herpesvirus
+      testpep.s$SEQ_VIRUS <- stringr::str_split_fixed(testpep.s$SEQ_INFO,"\\|",4)[,3]
+      set.seed(2024)
+      testpep.s <- testpep.s %>% dplyr::distinct(PROBE_SEQUENCE,.keep_all = T) %>% 
+        dplyr::group_by(SEQ_VIRUS) %>% dplyr::sample_frac(.1)
+      testpep.s.clus=clusterbreak(testpep.s$PROBE_SEQUENCE,
+                                size_max = 2500,
+                                size_min=2,
+                                thresh_p=.7,
+                                sim_fn=function(x) similarityMH(x,k=1,n_hash=50))
+      # ari measure code is AI generated by chatgpt
+      #create confusion matrix
+      confusionmatrix.s <- testpep.s.clus$clustered_seq
+      testdf.conf.s <- testpep.s %>% dplyr::select(PROBE_SEQUENCE,SEQ_VIRUS)
+      colnames(testdf.conf.s)[1]="pep"
+      confusionmatrix.s <- dplyr::left_join(as.data.frame(confusionmatrix.s),testdf.conf.s,by="pep")
+      adjustedRandIndex(confusionmatrix.s$SEQ_VIRUS, confusionmatrix.s$c.index)
+      
+      
+### long data
+testclass <- h3n2sample
+testclass <- testclass %>% dplyr::distinct(sequence,.keep_all=T)
+class_eval=function(seq){
+
+test.cluster=clusterbreak(seq,
+                          size_max = 2500,
+                          size_min=10,
+                          thresh_p=.7,
+                          sim_fn=function(x) similarityMH(x,k=3,n_hash=600))
+
+# ari measure code is AI generated by chatgpt
+#create confusion matrix
+confusionmatrix <- test.cluster$clustered_seq
+testdf.conf <- h3n2sample %>% dplyr::select(sequence,clade)
+colnames(testdf.conf)[1]="pep"
+confusionmatrix <- dplyr::left_join(as.data.frame(confusionmatrix),testdf.conf,by="pep")
+adjustedRandIndex(confusionmatrix$clade, confusionmatrix$c.index)
+
+return(adjustedRandIndex(confusionmatrix$clade, confusionmatrix$c.index))
+}
+
+
+
+class.results<-NULL
+for (i in 1:1000){#rep does not work for this somehow
+  print(paste0(i,"/1000"))
+  class.results=c(class.results,class_eval(testclass$sequence))
+}
+mean(class.results)
+sd(class.results)
+max(class.results)
+write.csv(class.results,paste0("C:/Users/chowz/OneDrive/umich/2024 Fall/BIOS 615/final project/output/long_classification_ari_rep1000.csv"),row.names = F)
+#plot the confusion matrix
+conf.plot=confusionmatrix
+conf.plot=conf.plot %>% group_by(c.index,clade) %>% summarise(freq=n())
+conf.plot$perc <- conf.plot$freq / sum(conf.plot$freq) * 100
+conf.plot.truth=conf.plot
+conf.plot.truth=conf.plot.truth %>% group_by(clade) %>% summarise(freq=sum(freq))
+conf.plot.truth$perc=conf.plot.truth$freq/sum(conf.plot.truth$freq)*100
+conf.plot.truth$c.index="truth"
+
+conf.plot=rbind(conf.plot,conf.plot.truth)
+
+ #claude generated code for visualization
+  #adjusted
+ggplot(conf.plot, aes(x = c.index, y = clade, fill = freq)) +
+    geom_tile(color = "white") +
+    scale_fill_viridis_c(name = "Frequency") +
+    geom_text(aes(label = sprintf("%d", freq)), 
+              color = "white", fontface = "bold") +
+    theme_classic() +
+    labs(x = "Clusters", y = "Clade")+  theme(
+      # Bold axis titles
+      axis.title.x = element_text(face = "bold", size = 12),
+      axis.title.y = element_text(face = "bold", size = 12),
+      
+      # Bold and angled axis labels
+      axis.text.x = element_text(face = "bold"),
+      axis.text.y = element_text(face = "bold"),
+      
+      # Bold plot title
+      plot.title = element_text(face = "bold", hjust = 0.5),
+      
+      # Legend styling
+      legend.title = element_text(face = "bold")
+    )
+
+ggplot(conf.plot, aes(x = c.index, y = clade, fill = perc)) +
+    geom_tile(color = "white") +
+    scale_fill_viridis_c(name = "Percentage (%)", 
+                         labels = function(x) sprintf("%.1f%%", x)) +
+    geom_text(aes(label = sprintf("%.1f%%", perc)), 
+              color = "white", fontface = "bold") +
+    theme_minimal() +
+    labs(title = "Confusion Matrix - Percentage",
+         x = "Predicted Class",
+         y = "True Class")
+
+
+#generate consensus sequence
+conc=clusterconsensus(test.cluster$clustered_seq)
+
+#generate consensus plot
+consensusplot(conc, vertex.size=0,edge.width=NA)
+
+```
 
 
 ```{r function revamp}
