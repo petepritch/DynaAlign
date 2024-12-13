@@ -2,9 +2,15 @@ Package: DynaAlign
 Type: Package
 Title: Scalable peptide sequence clustering and visualization in R
 Version: 0.0.0.9000
-Authors@R: person("Pete", "Pritchard", email = "petep@umich.edu", role = c("aut", "cre"))
+Authors@R: c(
+    person("Pete", "Pritchard", 
+          email = "petep@umich.edu", role = c("aut", "cre")),
+    person("Yulin", "Shao", 
+          email = "syl051088@gmail.com", role = "aut"),
+    person("Troy", "Zhou", 
+          email = "zzrtroy@umich.edu", role = "aut"))
 Description: DynaAlign addresses the challenge of clustering and analyzing large-scale peptide datasets for applications such as vaccine design and diagnostic assay development. The package integrates two primary similarity computation methods: exact sequence alignment using Needleman-Wunsch with multiple substitution matrices and an efficient, approximate MinHash-based approach. These are combined with network-based clustering via the igraph package, ensuring robust and scalable sequence clustering. Designed with performance and flexibility in mind, DynaAlign enables researchers to extract biologically meaningful insights from massive peptide datasets with unprecedented efficiency.
-License: MIT
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
@@ -16,7 +22,7 @@ Imports:
     igraph,
     Biostrings, 
     DECIPHER,
-    BiocManager
+    dplyr
 Depends: 
     R (>= 2.10)
 Suggests: 
