@@ -44,6 +44,27 @@ plot_similarity_matrix(X)
 
 ![](man/figures/heatmap.png)
 
+```r
+library(dplyr)
+
+# Load data
+data(h3n2sample)
+
+# Generate clusters
+out.df <- clusterbreak(h3n2sample$sequence[1:1000],
+                          size_max = 800,
+                          thresh_p = .8,
+                          sim_fn = function(x) similarityMH(x,k=4,n_hash=500))
+
+# Generate consensus sequence                          
+consensus_seq <- clusterconsensus(out.df$clustered_seq)
+ 
+# Default cluster plot
+consensusplot(consensus_seq)
+```
+
+![](man/figures/cluster.png)
+
 ## Contributing
 
 1. Fork (https://github.com/petepritch/DynaAlign/fork)
