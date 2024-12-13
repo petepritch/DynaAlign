@@ -81,7 +81,8 @@ louvain_mod <- function(gin, res, res_range_perc = 0, res_step = 0, itr = 3) {
 #' netcluster(pepmat = adjacency_matrix,cluster_weight = TRUE)
 #' 
 #' #use custom cluster function without using edge weights
-#' netcluster(pepmat = adjacency_matrix,cluster_weight=F,cluster_func=function(x,...) louvain_mod(gin=x,res=1.05,...)$cluster)
+#' netcluster(pepmat = adjacency_matrix,cluster_weight=F,cluster_func=function
+#'   (x,...) louvain_mod(gin=x,res=1.05,...)$cluster)
 netcluster<-function(pepmat,
                      igraph_mode = "upper",
                      igraph_weight = TRUE,
@@ -132,7 +133,8 @@ netcluster<-function(pepmat,
 #' test <- test %>% dplyr::distinct(sequence,.keep_all=T)
 #' 
 #' #set parameters, similarity matrix function, and cluster function
-#' clusterbreak(h3n2sample$sequence,size_max = 800,thresh_p=.8,sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
+#' clusterbreak(h3n2sample$sequence,size_max = 800,
+#'     thresh_p=.8,sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
 clusterbreak <- function(pep, 
                          thresh_p = 0.8,
                          size_max = 10, 
@@ -156,6 +158,14 @@ clusterbreak <- function(pep,
   state$convergence <- 1
   state$filter.df <- NULL
   
+  #' Cluster Recursive Function
+  #'
+  #' Performs recursive clustering with quantile thresholds.
+  #'
+  #' @param x Numeric vector for clustering.
+  #' @return Cluster results.
+  #' @export
+  #' @importFrom stats quantile
   cluster_recursive <- function(pep) {
     
     # Create helper function for logging adapted from Claude AI prompt
@@ -245,7 +255,8 @@ clusterbreak <- function(pep,
 #' library(DynaAlign)
 #' test <- h3n2sample %>% dplyr::group_by(clade) %>% dplyr::sample_frac(.4)
 #' test <- test %>% dplyr::distinct(sequence,.keep_all=T)
-#' out.df <- clusterbreak(h3n2sample$sequence,size_max = 800,thresh_p=.8,sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
+#' out.df <- clusterbreak(h3n2sample$sequence,size_max = 800,thresh_p=.8,
+#'     sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
 #' clusterconsensus(out.df$clustered_seq)
 clusterconsensus <- function(df) {
   cluster.id <- unique(df[,2])
@@ -278,7 +289,8 @@ clusterconsensus <- function(df) {
 #' library(DynaAlign)
 #' test <- h3n2sample %>% dplyr::group_by(clade) %>% dplyr::sample_frac(.4)
 #' test <- test %>% dplyr::distinct(sequence,.keep_all=T)
-#' out.df <- clusterbreak(h3n2sample$sequence,size_max = 800,thresh_p=.8,sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
+#' out.df <- clusterbreak(h3n2sample$sequence,size_max = 800,thresh_p=.8,
+#'     sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
 #' consensus_seq <- clusterconsensus(out.df$clustered_seq)
 #' 
 #' #default plot

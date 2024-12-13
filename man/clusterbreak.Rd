@@ -32,11 +32,15 @@ clusterbreak(
 \item{cluster_fn}{Function for network-based clustering compatible with igraph object that must output a numeric vector of cluster assignment (default: cluster_louvain)}
 
 \item{cluster_wt}{Logical value for whether or not the cluster function takes in network weights in the function}
+
+\item{x}{Numeric vector for clustering.}
 }
 \value{
 List containing:
 \item{clustered_seq}{A nx2 matrix containging selected sequences with their cluster assignments}
 \item{filtered_seq}{Filtered sequences}
+
+Cluster results.
 }
 \description{
 Generate clusters with specified sizes using graph network and louvain method
@@ -47,5 +51,10 @@ test <- h3n2sample \%>\% dplyr::group_by(clade) \%>\% dplyr::sample_frac(.4)
 test <- test \%>\% dplyr::distinct(sequence,.keep_all=T)
 
 #set parameters, similarity matrix function, and cluster function
-clusterbreak(h3n2sample$sequence,size_max = 800,thresh_p=.8,sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
+clusterbreak(h3n2sample$sequence,size_max = 800,
+    thresh_p=.8,sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
+Cluster Recursive Function
+
+Performs recursive clustering with quantile thresholds.
+
 }

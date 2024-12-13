@@ -42,5 +42,6 @@ adjacency_matrix[adjacency_matrix<threshold] <- 0
 netcluster(pepmat = adjacency_matrix,cluster_weight = TRUE)
 
 #use custom cluster function without using edge weights
-netcluster(pepmat = adjacency_matrix,cluster_weight=F,cluster_func=function(x,...) louvain_mod(gin=x,res=1.05,...)$cluster)
+netcluster(pepmat = adjacency_matrix,cluster_weight=F,cluster_func=function
+  (x,...) louvain_mod(gin=x,res=1.05,...)$cluster)
 }

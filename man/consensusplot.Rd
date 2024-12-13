@@ -36,7 +36,8 @@ Plot consensus sequences for each cluster in a clustered network
 library(DynaAlign)
 test <- h3n2sample \%>\% dplyr::group_by(clade) \%>\% dplyr::sample_frac(.4)
 test <- test \%>\% dplyr::distinct(sequence,.keep_all=T)
-out.df <- clusterbreak(h3n2sample$sequence,size_max = 800,thresh_p=.8,sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
+out.df <- clusterbreak(h3n2sample$sequence,size_max = 800,thresh_p=.8,
+    sim_fn=function(x) similarityMH(x,k=4,n_hash=500))
 consensus_seq <- clusterconsensus(out.df$clustered_seq)
 
 #default plot
