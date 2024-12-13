@@ -38,10 +38,15 @@ threshold <- quantile(similarity_matrix,0.8)
 adjacency_matrix <- similarity_matrix
 adjacency_matrix[adjacency_matrix<threshold] <- 0
 
-#default Louvain algorithms takes in network edge weights
-netcluster(pepmat = adjacency_matrix,cluster_weight = TRUE)
+# Default Louvain algorithm takes in network edge weights
+netcluster(pepmat = adjacency_matrix, cluster_weight = TRUE)
 
-#use custom cluster function without using edge weights
-netcluster(pepmat = adjacency_matrix,cluster_weight=F,cluster_func=function
-  (x,...) louvain_mod(gin=x,res=1.05,...)$cluster)
+# Use custom cluster function without using edge weights
+netcluster(
+  pepmat = adjacency_matrix,
+  cluster_weight = FALSE,
+  cluster_func = function(x, ...) {
+    louvain_mod(gin = x, res = 1.05, ...)$cluster
+  }
+)
 }
